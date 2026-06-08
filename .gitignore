@@ -1,5 +1,5 @@
 # 排除資料集
-datasets/
+datasets/*
 
 # 排除實驗結果
 run/
