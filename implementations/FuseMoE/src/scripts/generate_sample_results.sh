@@ -1,0 +1,42 @@
+export CUDA_VISIBLE_DEVICES=2
+
+
+python -W ignore generate_sample_results.py \
+    --num_train_epochs 8 \
+    --modeltype 'TS_Text' \
+    --fp16 \
+    --kernel_size 1 \
+    --train_batch_size 2 \
+    --eval_batch_size 8 \
+    --seed 1 \
+    --gradient_accumulation_steps 16 \
+    --ts_learning_rate 0.0004 \
+    --txt_learning_rate 0.00002 \
+    --notes_order 'Last' \
+    --num_of_notes 5 \
+    --output_dir "../run/TS_Text" \
+    --layers 1 \
+    --embed_dim 128 \
+    --num_modalities 2 \
+    --file_path '/mnt/data/yihua/master/datasets/mimic-iv/TS_Text'\
+    --task 'ihm-48-notes'\
+    --num_labels 2 \
+    --tt_max 48 \
+    --num_heads 8 \
+    --embed_time 64 \
+    --irregular_learn_emb_ts 'mTAND'\
+    --irregular_learn_emb_text 'mTAND'\
+    --irregular_learn_emb_cxr 'mTAND'\
+    --irregular_learn_emb_ecg 'mTAND'\
+    --cross_method "moe" \
+    --gating_function "laplace" \
+    --num_of_experts 16 5 \
+    --top_k 4 4 \
+    --disjoint_top_k 2 \
+    --hidden_size 512 \
+    --router_type 'joint' \
+    --use_balance_loss \
+    --balance_loss_coef 0.01 \
+    --TS_mixup\
+    --mixup_level 'batch'\
+    --reg_ts \

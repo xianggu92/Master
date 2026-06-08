@@ -1,0 +1,12 @@
+# 排除資料集
+datasets/
+
+# 排除實驗結果
+run/
+
+# 排除模型權重與隱藏權重檔
+*.keras
+*.pth
+
+# 排除 Python 虛擬環境或快取
+__pycache__/
