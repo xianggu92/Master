@@ -57,6 +57,7 @@ class multiTimeAttention(nn.Module):
         self.linears = nn.ModuleList([nn.Linear(embed_time, embed_time),
                                       nn.Linear(embed_time, embed_time),
                                       nn.Linear(input_dim*num_heads, nhidden)])
+        self.head_output_identity = nn.Identity()
         
         if reimts:
             self.mapping_pool = nn.Parameter((1-2*torch.rand((num_ref_points, num_ref_points)))) # DEBUG: // 2 should be replaced with the actual ratio
@@ -93,6 +94,7 @@ class multiTimeAttention(nn.Module):
         x, _ = self.attention(query, key, value, mask, dropout)
         x = x.transpose(1, 2).contiguous() \
              .view(batch, -1, self.h * dim)
+        x = self.head_output_identity(x)
         
         x = self.linears[-1](x)
 

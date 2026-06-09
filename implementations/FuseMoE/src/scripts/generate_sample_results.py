@@ -8,6 +8,10 @@ import time
 import sys
 import logging
 import os
+from tqdm import tqdm
+import pickle
+import numpy as np
+
 logger = logging.getLogger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,12 +27,10 @@ from adjustText import adjust_text
 import textwrap
 from collections import defaultdict
 
-
 def main():
     args = parse_args()
 
     accelerator = Accelerator(cpu=args.cpu)
-
     device = accelerator.device
     print('Using device:', device)
     os.makedirs(args.output_dir, exist_ok=True)
@@ -36,7 +38,6 @@ def main():
     _, _, test_data_loader = data_perpare(args, 'test')
 
     make_save_dir(args)
-    os.makedirs(os.path.join(args.ck_file_path, 'log'), exist_ok=True)
 
     model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max, text_seq_num=args.num_of_notes)
     with open(os.path.join(args.file_path, f'scalers_{args.task}.pkl'), 'rb') as f:
@@ -48,24 +49,30 @@ def main():
 
     model.proj1.register_forward_hook(hook)
 
+    mtand_outputs = []
+    def mtand_hook(module, input, output):
+        # output shape: [B, tt_max, h * dim]
+        mtand_outputs.append(output.cpu())
+
+    # 註冊到時間序列分支的 mTAND (time_attn_ts) 內新增的 Identity 層
+    if hasattr(model, 'time_attn_ts'):
+        model.time_attn_ts.head_output_identity.register_forward_hook(mtand_hook)
+
     model, test_data_loader = \
     accelerator.prepare(model, test_data_loader)
 
     rootdir = args.ck_file_path
-    seeds = [0] 
-    # seeds = list(range(1, 6))
+    seeds = [1] 
     all_pred_list = []
     all_label_list = []
-    cnt = defaultdict(int)
+    sample_count = defaultdict(int)
 
-    variable_names = ['Anion Gap',
-        'Bicarbonate', 'Calcium, Total', 'Chloride', 'Creatinine',
-        'Diastolic BP', 'GCS - Eye Opening', 'GCS - Motor Response',
-        'GCS - Verbal Response', 'Glucose', 'Heart Rate', 'Hematocrit',
-        'Hemoglobin', 'MCH', 'MCHC', 'MCV', 'Magnesium', 'Mean BP',
-        'Neutrophils', 'O2 Saturation', 'Phosphate', 'Platelet Count', 'RDW',
-        'Red Blood Cells', 'Respiratory Rate', 'Sodium', 'Systolic BP',
-        'Urea Nitrogen', 'Vancomycin', 'White Blood Cells']
+    variable_names = ['Anion Gap', 'Bicarbonate', 'Calcium, Total', 'Chloride', 'Creatinine',
+                      'Diastolic BP', 'GCS - Eye Opening', 'GCS - Motor Response', 'GCS - Verbal Response',
+                      'Glucose', 'Heart Rate', 'Hematocrit', 'Hemoglobin', 'MCH', 'MCHC', 'MCV',
+                      'Magnesium', 'Mean BP', 'Neutrophils', 'O2 Saturation', 'Phosphate', 'Platelet Count',
+                      'RDW', 'Red Blood Cells', 'Respiratory Rate', 'Sodium', 'Systolic BP',
+                      'Urea Nitrogen', 'Vancomycin', 'White Blood Cells']
 
     for seed in seeds:
         for subdir, dirs, files in os.walk(rootdir):
@@ -82,7 +89,15 @@ def main():
 
             all_logits = []
             all_label = []
+            
             for idx, batch in enumerate(tqdm(test_data_loader)):
+                # 清空上一次 batch 的暫存，確保對應準確
+                mtand_outputs.clear() 
+                
+                # 複製一份真實的輸入序列用來畫圖對比 (x_ts shape: [B, seq_len, orig_d_ts])
+                raw_x_ts = batch['x_ts'].cpu().numpy()
+                raw_ts_tt = batch['ts_tt_list'].cpu().numpy()
+                
                 labels = batch.pop('labels')
                 with torch.no_grad():
                     logits = model(**batch)
@@ -92,108 +107,56 @@ def main():
 
                     all_logits.append(logits.cpu().numpy())
                     all_label.append(labels.cpu().numpy())
+                
+                pred_prob = logits[0].item()
+                pred_cls = 1 if pred_prob > 0.5 else 0
+                true_cls = labels[0].item()
 
-                # === 樣本視覺化 ===
+                if sample_count[(true_cls, pred_cls)] < 5:
+                    sample_count[(true_cls, pred_cls)] += 1
 
-                # 計算預測標籤
-                if 'ihm' in args.task:
-                    pred_prob = logits[0].item()
-                    pred_cls = 1 if pred_prob > 0.5 else 0
-                    true_cls = labels[0].item()
+                    # 視覺化輸入時間序列以及 mTAND 第一個頭的填補後結果
+                    dim = model.orig_d_ts * 2
+                    current_mtand_res = mtand_outputs[0][0, :, :dim].numpy()
+                    
+                    # 前半段為填補後的數值 (Value)，後半段為填補後的 Mask
+                    imputed_values = current_mtand_res[:, :model.orig_d_ts]
+                    
+                    # 建立畫布
+                    selected_features_idx = range(30)
+                    
+                    fig, axes = plt.subplots(len(selected_features_idx), 1, figsize=(12, 3 * len(selected_features_idx)), sharex=True)
+                    if len(selected_features_idx) == 1:
+                        axes = [axes]
+                        
+                    # mTAND 填補後的時間點 (0 到 1 的均勻分佈)
+                    query_time = np.linspace(0, 1, args.tt_max)
+                    # 原始不規則採樣時間點 (也是 0 到 1)
+                    raw_time = raw_ts_tt[0] 
 
-                    if seed == 1 and cnt[(true_cls, pred_cls)] < 5:
-                        cnt[(true_cls, pred_cls)] += 1
-
-                        # # 取出當前 batch 的第一個樣本 (index 0) 進行視覺化
-                        # raw_ts = batch['x_ts'][0].cpu().numpy()
-                        # raw_time = args.tt_max - batch['ts_tt_list'][0].cpu().numpy() * args.tt_max
-                        # raw_mask = batch['x_ts_mask'][0].cpu().numpy()
+                    for i, feat_idx in enumerate(selected_features_idx):
+                        feat_name = variable_names[feat_idx]
+                        ax = axes[i]
                         
-                        # # 提取文字（Notes）的時間與實際文本列表
-                        # note_time_ratio = batch['note_time_list'][0].cpu().numpy()
-                        # note_mask = batch['note_time_mask_list'][0].cpu().numpy()
-                        # actual_texts = batch['text_data'][0] 
-
-                        # # 篩選出真正有文字紀錄的時間點 (mask == 1)
-                        # valid_note_idx = np.where(note_mask == 1)[0]
-                        # actual_note_times = args.tt_max - (1 - note_time_ratio[valid_note_idx]) * args.tt_max
+                        # 繪製真實不規則採樣的點
+                        ax.scatter(raw_time, raw_x_ts[0, :, feat_idx], color='red', label='Observed Points', zorder=5, s=40)
                         
-                        # is_correct = "Correct" if pred_cls == true_cls else "Incorrect"
-                        # title_text = f"Sample {idx} - {args.task} Prediction: {is_correct} (Pred: {pred_prob:.3f}, True: {true_cls})"
+                        # 繪製 mTAND 第一個頭的插值的點
+                        ax.scatter(query_time, imputed_values[:, feat_idx], color='blue', linestyle='-', label='mTAND Head-1 Imputation', alpha=0.8)
                         
-                        # # 開始畫圖
-                        # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 14), sharex=True, 
-                        #                             gridspec_kw={'height_ratios': [1, 1]})
-                        
-                        # # --- 子圖 1：不規則生理訊號折線 ---
-                        # num_features_to_plot = raw_ts.shape[1]
-                        # cmap = plt.cm.get_cmap()
-                        # texts = []
-
-                        # for f_idx in range(num_features_to_plot):
-                        #     valid_ts_idx = np.where(raw_mask[:, f_idx] == 1)[0]
-                        #     if len(valid_ts_idx) > 0:
-                        #         t_points = raw_time[valid_ts_idx]
-                        #         v_points = scalers[variable_names[f_idx]].inverse_transform(raw_ts[valid_ts_idx, f_idx].reshape(-1, 1))
-                        #         color = cmap(f_idx / num_features_to_plot)
-
-                        #         ax1.plot(t_points, v_points, 
-                        #                 marker='o', linestyle='-', label=f'{variable_names[f_idx]}', color=color)
-                                
-                        #         last_t = t_points[0]
-                        #         last_v = v_points[0]
-
-                        #         t_obj = ax1.text(last_t + 0.3, last_v, f'{variable_names[f_idx]}', 
-                        #                 fontsize=8, weight='bold', color=color,
-                        #                 va='center', ha='left')
-                        #         texts.append(t_obj)
-
-                        # adjust_text(texts, ax=ax1, arrowprops=dict(arrowstyle='->', color='gray', lw=0.5))
-                        # ax1.set_title(title_text, fontsize=14, color='green' if is_correct == "Correct" else 'red', pad=15)
-                        # ax1.set_ylabel("Vital Sign Values")
-                        # ax1.legend(loc='upper left', bbox_to_anchor=(1.02, 1), ncol=2, 
-                        #         borderaxespad=0, fontsize=9, frameon=True)
-                        # ax1.grid(True, linestyle='--', alpha=0.5)
-                        
-                        # # --- 子圖 2：臨床筆記文字時間線 ---
-                        # # 畫一條基準水平線代表時間軸
-                        # ax2.axhline(y=0, color='black', linestyle='-', linewidth=1.5)
-                        
-                        # # 交錯上下擺放標籤 (給予更大的 offset 避免蓋到生理訊號圖)
-                        # plot_effects = [0.5, -0.5] 
-                        
-                        # for i, t_note in enumerate(actual_note_times):
-                        #     if i >= len(actual_texts): # 安全防護，避免 text 數量不對齊
-                        #         break
-                                
-                        #     offset = plot_effects[i % 2]
-                        #     # 畫垂直引線
-                        #     ax2.vlines(x=t_note, ymin=0, ymax=offset, color='darkorange', linestyle='--', alpha=0.7)
-                        #     # 畫時間線上的錨點
-                        #     ax2.plot(t_note, 0, marker='s', color='darkorange', mfc='white', ms=8, mew=2)
-                            
-                        #     # 處理文本：截斷過長文字並自動折行
-                        #     full_text = actual_texts[i]
-                        #     text_max_length = 150
-                        #     truncated_text = full_text if len(full_text) <= text_max_length else full_text[:text_max_length] + "..."
-                        #     wrapped_text = textwrap.fill(truncated_text, width=20) # 自動換行
-                            
-                        #     box_content = f"t={t_note:.1f}\n{wrapped_text}"
-                            
-                        #     # 標註文字氣泡框
-                        #     ax2.text(t_note, offset + (0.08 if offset > 0 else -0.08), box_content, 
-                        #             ha='center', va='center', fontsize=9.5,
-                        #             bbox=dict(boxstyle='round,pad=0.4', facecolor='#FFF3E0', alpha=0.9, edgecolor='darkorange'))
-                        
-                        # ax2.set_ylim(-1.2, 1.2)
-                        # ax2.get_yaxis().set_visible(False) # 隱藏 Y 軸
-                        # ax2.set_xlabel("Timeline (Hours / Timesteps)")
-                        # ax2.grid(True, axis='x', linestyle='--', alpha=0.5)
-                        
-                        # os.makedirs(os.path.join(args.ck_file_path, 'images'), exist_ok=True)
-                        # plt.savefig(os.path.join(args.ck_file_path, 'images', f"ts_real_text_timeline_{pred_cls}_{true_cls}_{cnt[(true_cls, pred_cls)]-1}.png"), bbox_inches='tight')
-                        # plt.show()
-                        # plt.close()
+                        ax.set_ylabel(feat_name)
+                        ax.grid(True, linestyle='--', alpha=0.5)
+                        if i == 0:
+                            ax.legend(loc='upper left')
+                    
+                    axes[-1].set_xlabel('Normalized Time (0 to 1)')
+                    plt.suptitle(f'Sample Analaysis (True Cls: {true_cls}, Pred Cls: {pred_cls}, Prob: {pred_prob:.4f})', fontsize=14)
+                    plt.tight_layout(rect=[0, 0, 1, 0.98]) # 留出頂部給標題
+                    
+                    # 儲存圖片
+                    plot_save_path = os.path.join(rootdir, 'images', f'{args.task}_imputation_T{true_cls}_P{pred_cls}_cnt{sample_count[(true_cls, pred_cls)]}.png')
+                    plt.savefig(plot_save_path, dpi=150)
+                    plt.close()
 
             all_logits = np.concatenate(all_logits, axis=0)
             all_label = np.concatenate(all_label, axis=0)
@@ -201,11 +164,11 @@ def main():
             all_pred_list.append(all_pred)
             all_label_list.append(all_label)
 
-
     features = torch.cat(features, dim=0).numpy()
     all_pred_list = np.concatenate(all_pred_list, axis=0)
     all_label_list = np.concatenate(all_label_list, axis=0)
 
+    # 測試五個種子時才儲存樣本結果
     if len(seeds) == 5:
         with open(rootdir + "/sample_result.pkl","wb") as f:
             result = {'features': features, 'preds': all_pred_list, 'labels': all_label_list}
