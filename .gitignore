@@ -10,3 +10,6 @@ run/
 
 # 排除 Python 虛擬環境或快取
 __pycache__/
+
+# 排除腳本
+*.sh
