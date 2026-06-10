@@ -178,7 +178,7 @@ def main():
                     plt.tight_layout(rect=[0, 0, 1, 0.98]) # 留出頂部給標題
                     
                     # 儲存圖片
-                    plot_save_path = os.path.join(rootdir, 'images', f'{args.task}_ts_imputation_{suffix}')
+                    plot_save_path = os.path.join(rootdir, 'images', f'ts_imputation_{suffix}')
                     plt.savefig(plot_save_path, dpi=150)
                     plt.close()
 
@@ -223,7 +223,7 @@ def main():
                         plt.suptitle(f'Text Modality Imputation Analysis (True Cls: {true_cls}, Pred Cls: {pred_cls}, Prob: {pred_prob:.4f})', fontsize=14)
                         plt.tight_layout(rect=[0, 0, 1, 0.98])
                         
-                        text_save_path = os.path.join(rootdir, 'images', f'{args.task}_text_imputation_{suffix}')
+                        text_save_path = os.path.join(rootdir, 'images', f'text_imputation_{suffix}')
                         plt.savefig(text_save_path, dpi=150)
                         plt.close()
 
