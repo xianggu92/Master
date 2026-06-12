@@ -165,6 +165,12 @@ def main():
                         # 繪製真實不規則採樣的點
                         ax.scatter(raw_time, raw_x_ts[0, :, feat_idx], color='red', label='Observed Points', zorder=5, s=40)
                         
+                        # 【新增】計算並繪製真實觀測值的平均值水平線
+                        obs_values = raw_x_ts[0, :, feat_idx]
+                        if len(obs_values) > 0:
+                            ts_mean = np.nanmean(obs_values)
+                            ax.axhline(y=ts_mean, color='green', linestyle='--', alpha=0.7, label='Observed Mean')
+                        
                         # 繪製 mTAND 第一個頭的插值的點
                         ax.scatter(query_time, imputed_values[:, feat_idx], color='blue', linestyle='-', label='mTAND Head-1 Imputation', alpha=0.8)
                         
@@ -210,6 +216,11 @@ def main():
                             
                             # 繪製真實觀測到的文字 Embedding 數值
                             ax.scatter(observed_note_times, observed_text_emb[:, i], color='red', label='Observed Notes', zorder=5, s=40)
+                            
+                            # 【新增】計算並繪製真實觀測文字 Embedding 的平均值水平線
+                            if len(observed_text_emb) > 0:
+                                txt_mean = np.nanmean(observed_text_emb[:, i])
+                                ax.axhline(y=txt_mean, color='green', linestyle='--', alpha=0.7, label='Observed Mean')
                             
                             # 繪製 mTAND 第一個頭對該文字隱含特徵插補出的數值
                             ax.scatter(query_time, imputed_text_values[:, i], color='purple', linestyle='-', label='mTAND Head-1 Text Imputation', alpha=0.8)
