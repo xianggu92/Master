@@ -92,9 +92,11 @@ class multiTimeAttention(nn.Module):
         query, key = [l(x).view(x.size(0), -1, self.h, self.embed_time_k).transpose(1, 2)
                       for l, x in zip(self.linears, (query, key))]
         x, _ = self.attention(query, key, value, mask, dropout)
+        
+        x = self.head_output_identity(x)
+
         x = x.transpose(1, 2).contiguous() \
              .view(batch, -1, self.h * dim)
-        x = self.head_output_identity(x)
         
         x = self.linears[-1](x)
 
