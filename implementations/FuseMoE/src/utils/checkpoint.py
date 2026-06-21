@@ -37,9 +37,6 @@ def make_save_dir(args):
             if args.router_type == 'disjoint':
                 output_dir += f"_disjoint_{args.disjoint_top_k}"
 
-    if args.modeltype=="Text" or args.modeltype=="TS":
-        output_dir += '_layer'+str(args.layers)
-
     if args.TS_mixup:
         output_dir += "_" + args.mixup_level
 
