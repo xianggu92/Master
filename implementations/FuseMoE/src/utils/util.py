@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument("--wandb", action='store_true')
+    parser.add_argument("--debug", action='store_true')
 
     parser.add_argument("--cross_method", default='moe', type=str, help="all fusion methods: moe, hme, moe_cross, self_cross, MAGGate, MulT, Outer, concat")
     parser.add_argument("--hidden_size", default=512, type=int, help="hidden size of MLP second layer")

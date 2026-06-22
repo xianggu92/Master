@@ -105,6 +105,8 @@ class TSNote_Irg(Dataset):
         self.mode = mode
         self.tt_max = args.tt_max
         self.reg_ts = args.reg_ts
+        if args.debug:
+            self.data = self.data[:100]
         
     def __getitem__(self, idx):
         """
