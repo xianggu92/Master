@@ -56,10 +56,7 @@ def check_point(all_val, model, all_logits, args, eval_score=None):
         output_dir += eval_score +'/'
     os.makedirs(output_dir, exist_ok=True)
 
-    if args.generate_data:
-        filename = output_dir+str(args.datagereate_seed)+"_"+str(seed)+'.pth.tar'
-    else:
-        filename = output_dir+str(seed)+'.pth.tar'
+    filename = output_dir+str(seed)+'.pth.tar'
 
     if not os.path.exists(filename):
         is_best = True

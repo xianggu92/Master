@@ -37,81 +37,21 @@ def parse_args():
     parser.add_argument(
             "--task", type=str, default="ihm"
         )
-    parser.add_argument(
-        "--file_path", type=str, default="Data", help="A path to dataset folder"
-    )
+    parser.add_argument("--file_path", type=str, default="Data", help="A path to dataset folder")
     parser.add_argument("--output_dir", type=str, default="Checkpoints", help="Where to store the final model.")
-    parser.add_argument("--tensorboard_dir", type=str, default=None, help="Where to store the final model.")
-
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training.")
     parser.add_argument("--mode", type=str, default="train", help="train/test")
     parser.add_argument("--modeltype", type=str, default="TS_Text", help="TS, Text or TS_Text")
-    parser.add_argument("--eval_score", default=['auc', 'auprc', 'f1'], type=list)
-
     parser.add_argument('--num_labels', type=int, default=2)
-    parser.add_argument("--max_length", type=int, default=128, help=(
-            "The maximum total input sequence length after tokenization. Sequences longer than this will be truncated," " sequences shorter will be padded if `--pad_to_max_lengh` is passed."),)
-    parser.add_argument( "--pad_to_max_length", action="store_true", help="If passed, pad all samples to `max_length`. Otherwise, dynamic padding is used.", )
-    parser.add_argument( "--model_path", type=str, help="Path to pretrained model or model identifier from huggingface.co/models.",
-    )
-    parser.add_argument(
-        "--train_batch_size",
-        type=int,
-        default=8,
-        help="Batch size  for the training dataloader.",
-    )
-    parser.add_argument(
-        "--eval_batch_size",
-        type=int,
-        default=32,
-        help="Batch size for the evaluation dataloader.",
-    )
-    parser.add_argument("--num_update_bert_epochs", type=int, default=10, help="Number of per training epochs update the bert model.")
+    parser.add_argument("--train_batch_size", type=int, default=8, help="Batch size  for the training dataloader.")
+    parser.add_argument("--eval_batch_size", type=int, default=32, help="Batch size for the evaluation dataloader.")
     parser.add_argument("--num_train_epochs", type=int, default=10, help="Total number of training epochs to perform.")
-
-    parser.add_argument(
-        "--txt_learning_rate",
-        type=float,
-        default=5e-5,
-        help="Initial learning rate for Txt self-attention and Bert to use.",
-    )
-
-    parser.add_argument(
-        "--ts_learning_rate",
-        type=float,
-        default=0.0004,
-        help="Initial learning rate for TS self-attention to use.",
-    )
-
-    parser.add_argument(
-        "--gradient_accumulation_steps",
-        type=int,
-        default=1,
-        help="Number of updates steps to accumulate before performing a backward/update pass.",
-    )
-
-    parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay to use.")
-    parser.add_argument(
-        "--lr_scheduler_type",
-        type=str,
-        default="linear",
-        help="The scheduler type to use.",
-        choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
-    )
-    parser.add_argument( "--pt_mask_ratio",default=0.15, type=float, help="mask rate for pretrain .",
-    )
-    parser.add_argument( "--mean_mask_length",default=3, type=int, help="mean mask length for pretrain .",
-    )
-
-    parser.add_argument('--chunk', action='store_true')
-    parser.add_argument("--chunk_type", default='sent_doc_pos', type=str, help="How to chunk the text. sent_doc_pos: sentence level position + doc level position")
-    parser.add_argument("--warmup_proportion", default=0.10, type=float, help="proportion for the warmup in the lr scheduler.")
+    parser.add_argument("--ts_learning_rate", type=float, default=0.0004, help="Initial learning rate for TS self-attention to use.")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.")
     parser.add_argument("--kernel_size", type=int, default=1, help="Kernel size for CNN.")
     parser.add_argument("--num_heads", type=int, default=8, help="Number of heads.")
     parser.add_argument("--layers", type=int, default=3, help="Number of transformer encoder layer.")
-    parser.add_argument("--cross_layers", type=int, default=3, help="Number of transformer cross encoder layer.")
     parser.add_argument("--embed_dim", default=30, type=int, help="attention embedding dim.")
-
     parser.add_argument("--irregular_learn_emb_ts", type=str, default=None)
     parser.add_argument("--irregular_learn_emb_text", type=str, default=None)
     parser.add_argument("--irregular_learn_emb_cxr", type=str, default=None)
@@ -121,27 +61,13 @@ def parse_args():
     parser.add_argument("--orig_d_ts", default=30, type=int, help="Number of time series variables.")
     parser.add_argument("--orig_d_txt", default=768, type=int, help="Dimention of text embeddings.")
     parser.add_argument("--embed_time", default=64, type=int, help="emdedding for time.")
-    parser.add_argument('--ts_to_txt', action='store_true')
-    parser.add_argument('--txt_to_ts', action='store_true')
-
     parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
-    parser.add_argument("--model_name", default='BioBert', type=str, help="model for text")
 
-    parser.add_argument('--bertcount',type=int, default=3,help='number of count update bert in total')
-    parser.add_argument('--first_n_item', help='Top n item in val seeds', type=int, default=3)
-    parser.add_argument('--fine_tune', action='store_true')
-    parser.add_argument('--self_cross', action='store_true')
     parser.add_argument('--TS_mixup', action='store_true', help='mix up reg and irg data')
     parser.add_argument("--mixup_level", default=None, type=str, help="mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
 
     parser.add_argument('--fp16', action='store_true')
-    parser.add_argument('--debug', action='store_true')
-    parser.add_argument('--generate_data', action='store_true')
-    parser.add_argument('--FTLSTM', action='store_true')
-    parser.add_argument('--Interp', action='store_true')
     parser.add_argument('--cpu', action='store_true')
-    parser.add_argument("--datagereate_seed", type=int, default=42, help="A seed for reproducible data generation .")
-    parser.add_argument("--TS_model", type=str, default='Atten', help="LSTM, CNN, Atten")
     parser.add_argument("--wandb", action='store_true')
 
     parser.add_argument("--cross_method", default='moe', type=str, help="all fusion methods: moe, hme, moe_cross, self_cross, MAGGate, MulT, Outer, concat")
@@ -151,7 +77,6 @@ def parse_args():
     parser.add_argument("--top_k", nargs='*', type=int, help="the number of experts finally combined together for joint and permod routers")
     parser.add_argument("--disjoint_top_k", default=2, type=int, help="the number of experts finally combined together for disjoint routers")
     parser.add_argument("--num_modalities", default=2, type=int, help="the number of input modalities used to train transformer")
-    parser.add_argument("--use_pt_text_embeddings", action='store_true', help="Option to use pre-extracted text embeddings")
     parser.add_argument("--router_type", default='joint', type=str, help="all router types: joint, permod, disjoint")
     parser.add_argument("--use_balance_loss", action='store_true', help="Whether to include balance_loss term in total loss (only for MoE/HME fusion methods)")
     parser.add_argument("--balance_loss_coef", default=0.01, type=float, help="Coefficient for balance_loss term in total loss")

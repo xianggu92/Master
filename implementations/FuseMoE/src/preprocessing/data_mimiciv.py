@@ -100,11 +100,9 @@ class TSNote_Irg(Dataset):
         if data != None:
             self.data = data
         else:
-            self.data = load_data(file_path=args.file_path, mode=mode, debug=args.debug, task=args.task)
-        self.notes_order = args.notes_order
+            self.data = load_data(file_path=args.file_path, mode=mode, task=args.task)
         self.modeltype = args.modeltype
         self.mode = mode
-        self.num_of_notes = args.num_of_notes
         self.tt_max = args.tt_max
         self.reg_ts = args.reg_ts
         
@@ -167,7 +165,7 @@ class TSNote_Irg(Dataset):
             x['note_time'] = text_time_to_end
             x['note_time_mask'] = text_time_mask
             x['text_missing'] = data_detail['text_missing']
-            x['text_data'] = data_detail['text_data'][:self.num_of_notes]
+            x['text_data'] = data_detail['text_data']
 
         if 'CXR' in self.modeltype:
             if not data_detail['cxr_missing']:
@@ -220,7 +218,7 @@ class TSNote_Irg(Dataset):
     def __len__(self):
         return len(self.data)
 
-def load_data(file_path, mode, debug=False, text=False, task='ihm'):
+def load_data(file_path, mode, text=False, task='ihm'):
     """
     Load data from a file.
 
@@ -239,8 +237,6 @@ def load_data(file_path, mode, debug=False, text=False, task='ihm'):
         print('Using', dataPath)
         with open(dataPath, 'rb') as f:
             data = pickle.load(f)
-            if debug and not text:
-                data = data[:100]
 
     return data
 

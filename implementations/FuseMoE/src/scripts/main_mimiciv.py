@@ -45,15 +45,8 @@ def main():
     elif args.mode=='test':
          _, _, test_data_loader = data_perpare(args, 'test')
 
-    model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max, text_seq_num=args.num_of_notes)
-    
-    if 'Text' in args.modeltype:
-        optimizer= torch.optim.Adam([
-                {'params': [p for n, p in model.named_parameters() if 'bert' not in n]},
-                {'params': [p for n, p in model.named_parameters() if 'bert' in n], 'lr': args.txt_learning_rate}
-            ], lr=args.ts_learning_rate)
-    else:
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.ts_learning_rate)
+    model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.ts_learning_rate)
 
     if args.mode == 'train':
         model, optimizer, train_dataloader,val_dataloader,test_data_loader = \

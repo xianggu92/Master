@@ -61,7 +61,7 @@ class BertForRepresentation(nn.Module):
 
 
 class MULTCrossModel(nn.Module):
-    def __init__(self,args,device,modeltype=None,orig_d_ts=None,orig_reg_d_ts=None,orig_d_txt=None,ts_seq_num=None,text_seq_num=None):
+    def __init__(self, args, device, modeltype=None, orig_d_ts=None, orig_reg_d_ts=None, orig_d_txt=None, ts_seq_num=None):
         """
         Construct a MulT Cross model.
         """
@@ -88,7 +88,6 @@ class MULTCrossModel(nn.Module):
         self.tt_max = args.tt_max
         self.cross_method = args.cross_method
         self.num_modalities = args.num_modalities
-        self.use_pt_text_embeddings = args.use_pt_text_embeddings
         self.token_type_embeddings = nn.Embedding(args.num_modalities, args.embed_dim)
 
         if self.irregular_learn_emb_ts is not None or self.irregular_learn_emb_text is not None:
@@ -123,7 +122,6 @@ class MULTCrossModel(nn.Module):
         if "Text" in self.modeltype:
             self.orig_d_txt = orig_d_txt
             self.d_txt = args.embed_dim
-            self.text_seq_num = text_seq_num
 
             if self.irregular_learn_emb_text == 'mTAND':
                 self.time_attn_text = multiTimeAttention(768, self.d_txt, args.embed_time, 8)
@@ -135,7 +133,6 @@ class MULTCrossModel(nn.Module):
         if "CXR" in self.modeltype:
             self.orig_d_cxr = 1024
             self.d_cxr = args.embed_dim
-            self.cxr_seq_num = 5
 
             if self.irregular_learn_emb_cxr == 'mTAND':
                 self.time_attn_cxr = multiTimeAttention(1024, self.d_cxr, args.embed_time, 8)
@@ -145,7 +142,6 @@ class MULTCrossModel(nn.Module):
         if "ECG" in self.modeltype:
             self.orig_d_ecg = 256
             self.d_ecg = args.embed_dim
-            self.ecg_seq_num = 5
 
             if self.irregular_learn_emb_ecg == 'mTAND':
                 self.time_attn_ecg = multiTimeAttention(256, self.d_ecg, args.embed_time, 8)

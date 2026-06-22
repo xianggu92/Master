@@ -17,10 +17,7 @@ def eval_test(args, model, test_data_loader, device):
     except:
         result_dict={}
 
-    if args.generate_data:
-        seed = str(args.datagereate_seed)+'_'+str(args.seed)
-    else:
-        seed = args.seed
+    seed = args.seed
     result_dict[seed] = {}
     for subdir, dirs, files in os.walk(rootdir):
         substr = subdir.split('/')[-1]
