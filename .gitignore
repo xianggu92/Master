@@ -16,3 +16,6 @@ __pycache__/
 
 # 排除分析用筆記本
 analysis/
+
+# 排除 Weight & Biases 資料夾
+wandb\
