@@ -18,4 +18,4 @@ __pycache__/
 analysis/
 
 # 排除 Weight & Biases 資料夾
-wandb\
+wandb/
