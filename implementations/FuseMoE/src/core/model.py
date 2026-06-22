@@ -90,7 +90,6 @@ class MULTCrossModel(nn.Module):
         self.num_modalities = args.num_modalities
         self.use_pt_text_embeddings = args.use_pt_text_embeddings
         self.token_type_embeddings = nn.Embedding(args.num_modalities, args.embed_dim)
-        self.adaptive_patch = args.adaptive_patch
 
         if self.irregular_learn_emb_ts is not None or self.irregular_learn_emb_text is not None:
             self.time_query = torch.linspace(0, 1., self.tt_max)
@@ -104,9 +103,6 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_ts == 'mTAND':
                 self.time_attn_ts = multiTimeAttention(self.orig_d_ts*2, self.d_ts, args.embed_time, 8)
-
-                if self.adaptive_patch:
-                    self.delta_ts = nn.Parameter(torch.zeros(self.tt_max))
             elif self.irregular_learn_emb_ts == 'ReIMTS':
                 self.reimts_ts = ReIMTS(self.orig_d_ts*2, self.d_ts, args.embed_time, 8, self.tt_max)
  
@@ -131,9 +127,6 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_text == 'mTAND':
                 self.time_attn_text = multiTimeAttention(768, self.d_txt, args.embed_time, 8)
-
-                if self.adaptive_patch:
-                    self.delta_text = nn.Parameter(torch.zeros(self.tt_max))
             elif self.irregular_learn_emb_ts == 'ReIMTS':
                 self.reimts_txt = ReIMTS(768, self.d_txt, args.embed_time, 8, self.tt_max)
             else:
@@ -229,12 +222,7 @@ class MULTCrossModel(nn.Module):
             if self.irregular_learn_emb_ts == 'mTAND':
                 self.time_query = self.time_query.to(self.device)
                 time_key_ts = self.learn_time_embedding(ts_tt_list).to(self.device)
-
-                # Adaptive patching
-                if self.adaptive_patch:
-                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0) + self.delta_ts.unsqueeze(0)).to(self.device)
-                else:
-                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
+                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
 
                 x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
                 x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
@@ -286,11 +274,7 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_text == 'mTAND':
                 time_key = self.learn_time_embedding(note_time_list)
-
-                # Adaptive patching
-                if self.adaptive_patch:
-                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0) + self.delta_text.unsqueeze(0)).to(self.device)
-                else:
+                if not self.irregular_learn_emb_ts:
                     time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
 
                 proj_x_txt = self.time_attn_text(time_query, time_key, x_txt, note_time_mask_list)

@@ -40,9 +40,6 @@ def make_save_dir(args):
     if args.TS_mixup:
         output_dir += "_" + args.mixup_level
 
-    if args.adaptive_patch:
-        output_dir += '_adaptive'
-
     output_dir += "_" + str(args.ts_learning_rate) + "_" + str(args.num_train_epochs) + "_" + str(args.num_heads) + "_" + str(args.embed_dim) +\
         "_" + str(args.kernel_size) + "_" + str(args.train_batch_size) + "_" + str(args.hidden_size) + '/'
 

@@ -123,7 +123,6 @@ def parse_args():
     parser.add_argument("--embed_time", default=64, type=int, help="emdedding for time.")
     parser.add_argument('--ts_to_txt', action='store_true')
     parser.add_argument('--txt_to_ts', action='store_true')
-    parser.add_argument('--adaptive_patch', action='store_true')
 
     parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
     parser.add_argument("--model_name", default='BioBert', type=str, help="model for text")
