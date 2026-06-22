@@ -127,9 +127,6 @@ def parse_args():
 
     parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
     parser.add_argument("--model_name", default='BioBert', type=str, help="model for text")
-    parser.add_argument('--num_of_notes', help='Number of notes to include for a patient input 0 for all the notes', type=int, default=5)
-    parser.add_argument('--notes_order', help='Should we get notes from beginning of the admission time or from end of it, options are: 1. First: pick first notes 2. Last: pick last notes', default=None)
-    parser.add_argument('--ratio_notes_order', help='The parameter of a bernulli distribution on whether take notes from First or Last, 1-Last, 0-First',type=float, default=None)
 
     parser.add_argument('--bertcount',type=int, default=3,help='number of count update bert in total')
     parser.add_argument('--first_n_item', help='Top n item in val seeds', type=int, default=3)

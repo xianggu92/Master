@@ -158,15 +158,6 @@ class TSNote_Irg(Dataset):
 
                 text_time_mask = [1] * len(text_time_to_end)
                 text_time_mask = torch.tensor(text_time_mask, dtype=torch.long)
-
-                if self.notes_order == "Last":
-                    text_emb = text_emb[-self.num_of_notes:]
-                    text_time_to_end = text_time_to_end[-self.num_of_notes:]
-                    text_time_mask = text_time_mask[-self.num_of_notes:]
-                else:
-                    text_emb = text_emb[:self.num_of_notes]
-                    text_time_to_end = text_time_to_end[:self.num_of_notes]
-                    text_time_mask = text_time_mask[:self.num_of_notes]
             else:
                 text_emb = torch.zeros((1, 768))
                 text_time_to_end = torch.zeros(1)
