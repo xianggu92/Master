@@ -24,4 +24,4 @@ metric_list = ['auc', 'ave_auc_macro', 'f1', 'macro_f1', 'precision', 'recall', 
 for metric_name, value_dict in reformatted_result.items():
     if metric_name in metric_list:
         for dataset_name, values in value_dict.items():
-            print(f'{metric_name:>10} ({len(values)} run {dataset_name:4}): {statistics.fmean(values)*100:2.2f}±{statistics.stdev(values)*100:1.2f}')
+            print(f'{metric_name:>15} ({len(values)} run {dataset_name:4}): {statistics.fmean(values)*100:2.2f}±{statistics.stdev(values)*100:1.2f}')
