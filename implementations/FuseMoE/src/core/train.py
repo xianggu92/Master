@@ -126,8 +126,8 @@ def evaluate_irg(args, device, data_loader, model):
     if 'pheno' in args.task:
         eval_vals = metrics_multilabel(all_label, all_logits, verbose=0)
         eval_vals['macro_f1'] = f1_score(all_label, all_pred, average='macro')
-        eval_vals['macro_precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
         eval_vals['macro_recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
+        eval_vals['macro_precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
 
         check_point(eval_vals, model, eval_logits, args, "macro_f1")
 
