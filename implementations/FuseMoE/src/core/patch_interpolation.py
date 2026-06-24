@@ -26,19 +26,9 @@ class PatchInterpolation(nn.Module):
         if self.use_global:
             global_output = self.global_encoder(query, key, value, mask)
 
-        # print('query:', query.shape) # (B, n_ref_point, time_dim)
-        # print('key:', key.shape) # (B, L, time_dim)
-        # print('value:', value.shape) # (B, L, n_variable)
-        # print('mask:', mask.shape) # (B, L, n_variable)
-
         # 分塊，Key、Value、Time 複製成 Patch 數量，並利用 Mask 來遮蓋掉 Patch 範圍外的資訊
         query = rearrange(query, 'b (n_patch patch_len) hidden_dim -> (b n_patch) patch_len hidden_dim', n_patch=self.n_patch)
         key, value, mask, x_time = self.patchify_all(key, value, mask, x_time)
-
-        # print('query:', query.shape) # (B * n_patch, n_ref_point // n_patch, time_dim)
-        # print('key:', key.shape) # (B * n_patch, max_len, time_dim)
-        # print('value:', value.shape) # (B * n_patch, max_len, n_variable)
-        # print('mask:', mask.shape) # (B * n_patch, max_len, n_variable)
     
         # 取得局部特徵
         output = self.local_encoder(query, key, value, mask)
