@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 from core.module import *
 from core.interp import *
-from core.PatchInterpolation import PatchInterpolation
+from core.patch_interpolation import PatchInterpolation
 
 
 class BertForRepresentation(nn.Module):
@@ -217,9 +217,8 @@ class MULTCrossModel(nn.Module):
         """
         if "TS" in self.modeltype:
             if self.irregular_learn_emb_ts == 'mTAND':
-                self.time_query = self.time_query.to(self.device)
-                time_key_ts = self.learn_time_embedding(ts_tt_list).to(self.device)
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
+                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
+                time_key_ts = self.learn_time_embedding(ts_tt_list)
 
                 x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
                 x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
@@ -228,8 +227,10 @@ class MULTCrossModel(nn.Module):
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
 
             elif self.irregular_learn_emb_text == 'PatchInterpolation':
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).repeat(ts_tt_list.size(0), 1, 1)
+                # 需要展開 Query 的 Batch 維度，之後分塊才能跟 Key 的 Batch 維度對齊
+                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).expand(ts_tt_list.shape[0], -1, -1)
                 time_key_ts = self.learn_time_embedding(ts_tt_list)
+
                 x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
                 x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
 
@@ -277,7 +278,7 @@ class MULTCrossModel(nn.Module):
                 proj_x_txt = self.time_attn_text(time_query, time_key, x_txt, note_time_mask_list)
                 proj_x_txt = proj_x_txt.transpose(0, 1)
             elif self.irregular_learn_emb_text == 'PatchInterpolation':
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).repeat(note_time_list.size(0), 1, 1)
+                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).expand(ts_tt_list.shape[0], -1, -1)
                 time_key = self.learn_time_embedding(note_time_list)
 
                 proj_x_txt = self.patch_interpolation_txt(time_query, time_key, x_txt, note_time_list, note_time_mask_list)
