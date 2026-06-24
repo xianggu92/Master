@@ -25,6 +25,12 @@ def make_save_dir(args):
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
         output_dir += "_Text_" + args.irregular_learn_emb_text + "_" + str(args.embed_time)
 
+    if args.irregular_learn_emb_ts == 'PatchInterpolation':
+        output_dir += '_' + str(args.n_patch) + '_' + str(args.n_ref_point)
+
+        if args.use_global:
+            output_dir += '_global'
+
     if args.num_modalities > 1:
         output_dir += '_layer' + str(args.layers)
         output_dir+= "_" + args.cross_method

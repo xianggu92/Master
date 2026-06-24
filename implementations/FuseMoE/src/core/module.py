@@ -10,7 +10,6 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 from utils.config import MoEConfig
 from core.sparse_moe import MoE
-from core.hme import HierarchicalMoE
 from torch import Tensor
 from typing import Optional
 
@@ -45,8 +44,7 @@ class gateMLP(nn.Module):
 class multiTimeAttention(nn.Module):
     "mTAND module"
     def __init__(self, input_dim, nhidden=16,
-                 embed_time=16, num_heads=1,
-                 reimts=False, num_ref_points=48):
+                 embed_time=16, num_heads=1):
         super(multiTimeAttention, self).__init__()
         assert embed_time % num_heads == 0
         self.embed_time = embed_time
@@ -58,11 +56,6 @@ class multiTimeAttention(nn.Module):
                                       nn.Linear(embed_time, embed_time),
                                       nn.Linear(input_dim*num_heads, nhidden)])
         self.head_output_identity = nn.Identity()
-        
-        if reimts:
-            self.mapping_pool = nn.Parameter((1-2*torch.rand((num_ref_points, num_ref_points)))) # DEBUG: // 2 should be replaced with the actual ratio
-            self.score_layer = nn.Linear(self.nhidden, self.nhidden)
-
 
     def attention(self, query, key, value, mask=None, dropout=None):
         "Compute 'Scaled Dot Product Attention'"
@@ -82,7 +75,7 @@ class multiTimeAttention(nn.Module):
             p_attn=F.dropout(p_attn, p=dropout, training=self.training)
         return torch.sum(p_attn * value.unsqueeze(-3), -2), p_attn
 
-    def forward(self, query, key, value, mask=None, dropout=0.1, x_repr_time: Optional[Tensor] = None, **kwargs):
+    def forward(self, query, key, value, mask=None, dropout=0.1):
         "Compute 'Scaled Dot Product Attention'"
         batch, seq_len, dim = value.size()
         if mask is not None:
@@ -99,11 +92,6 @@ class multiTimeAttention(nn.Module):
              .view(batch, -1, self.h * dim)
         
         x = self.linears[-1](x)
-
-        if x_repr_time is not None:
-            x_repr_time_mapped = (x_repr_time.permute(0, 2, 1) @ self.mapping_pool.to(x_repr_time.device)).permute(0, 2, 1)
-            score = torch.sigmoid(self.score_layer(x_repr_time_mapped))
-            x = x + score * x_repr_time_mapped
 
         return x
 

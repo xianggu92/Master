@@ -62,6 +62,9 @@ def parse_args():
     parser.add_argument("--orig_d_txt", default=768, type=int, help="Dimention of text embeddings.")
     parser.add_argument("--embed_time", default=64, type=int, help="emdedding for time.")
     parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
+    parser.add_argument("--n_patch", default=2, type=int, help="Number of patches in patch interpolation.")
+    parser.add_argument("--n_ref_point", default=48, type=int, help="Number of reference points in patch interpolation.")
+    parser.add_argument("--use_global", action='store_true', help="Use global interpolation in patch interpolation.")
 
     parser.add_argument('--TS_mixup', action='store_true', help='mix up reg and irg data')
     parser.add_argument("--mixup_level", default=None, type=str, help="mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")

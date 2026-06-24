@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 from core.module import *
 from core.interp import *
-from core.ReIMTS import ReIMTS
+from core.PatchInterpolation import PatchInterpolation
 
 
 class BertForRepresentation(nn.Module):
@@ -86,12 +86,13 @@ class MULTCrossModel(nn.Module):
         self.mixup_level = args.mixup_level
         self.task = args.task
         self.tt_max = args.tt_max
+        self.n_ref_point = args.n_ref_point
         self.cross_method = args.cross_method
         self.num_modalities = args.num_modalities
         self.token_type_embeddings = nn.Embedding(args.num_modalities, args.embed_dim)
 
         if self.irregular_learn_emb_ts is not None or self.irregular_learn_emb_text is not None:
-            self.time_query = torch.linspace(0, 1., self.tt_max)
+            self.time_query = torch.linspace(0, 1., self.n_ref_point)
             self.periodic = nn.Linear(1, args.embed_time - 1)
             self.linear = nn.Linear(1, 1)
 
@@ -102,8 +103,8 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_ts == 'mTAND':
                 self.time_attn_ts = multiTimeAttention(self.orig_d_ts*2, self.d_ts, args.embed_time, 8)
-            elif self.irregular_learn_emb_ts == 'ReIMTS':
-                self.reimts_ts = ReIMTS(self.orig_d_ts*2, self.d_ts, args.embed_time, 8, self.tt_max)
+            elif self.irregular_learn_emb_ts == 'PatchInterpolation':
+                self.patch_interpolation_ts = PatchInterpolation(self.orig_d_ts*2, self.d_ts, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
  
             if self.reg_ts:
                 self.orig_reg_d_ts=orig_reg_d_ts
@@ -125,8 +126,8 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_text == 'mTAND':
                 self.time_attn_text = multiTimeAttention(768, self.d_txt, args.embed_time, 8)
-            elif self.irregular_learn_emb_ts == 'ReIMTS':
-                self.reimts_txt = ReIMTS(768, self.d_txt, args.embed_time, 8, self.tt_max)
+            elif self.irregular_learn_emb_ts == 'PatchInterpolation':
+                self.patch_interpolation_txt = PatchInterpolation(768, self.d_txt, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
             else:
                 self.proj_txt = nn.Conv1d(self.orig_d_txt, self.d_txt, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
@@ -226,13 +227,13 @@ class MULTCrossModel(nn.Module):
                 proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, ts_tt_list)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
 
-            elif self.irregular_learn_emb_text == 'ReIMTS':
+            elif self.irregular_learn_emb_text == 'PatchInterpolation':
                 time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).repeat(ts_tt_list.size(0), 1, 1)
                 time_key_ts = self.learn_time_embedding(ts_tt_list)
                 x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
                 x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
 
-                proj_x_ts_irg = self.reimts_ts(time_query, time_key_ts, x_ts_irg, ts_tt_list, x_ts_mask)
+                proj_x_ts_irg = self.patch_interpolation_ts(time_query, time_key_ts, x_ts_irg, ts_tt_list, x_ts_mask)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
 
             if self.reg_ts and reg_ts != None: 
@@ -275,11 +276,11 @@ class MULTCrossModel(nn.Module):
 
                 proj_x_txt = self.time_attn_text(time_query, time_key, x_txt, note_time_mask_list)
                 proj_x_txt = proj_x_txt.transpose(0, 1)
-            elif self.irregular_learn_emb_text == 'ReIMTS':
+            elif self.irregular_learn_emb_text == 'PatchInterpolation':
                 time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).repeat(note_time_list.size(0), 1, 1)
                 time_key = self.learn_time_embedding(note_time_list)
 
-                proj_x_txt = self.reimts_txt(time_query, time_key, x_txt, note_time_list, note_time_mask_list)
+                proj_x_txt = self.patch_interpolation_txt(time_query, time_key, x_txt, note_time_list, note_time_mask_list)
                 proj_x_txt = proj_x_txt.transpose(0, 1)
             else:
                 x_txt = x_txt.transpose(1, 2)
