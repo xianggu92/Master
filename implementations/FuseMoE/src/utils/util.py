@@ -84,7 +84,7 @@ def parse_args():
     parser.add_argument("--router_type", default='joint', type=str, help="all router types: joint, permod, disjoint")
     parser.add_argument("--use_balance_loss", action='store_true', help="Whether to include balance_loss term in total loss (only for MoE/HME fusion methods)")
     parser.add_argument("--balance_loss_coef", default=0.01, type=float, help="Coefficient for balance_loss term in total loss")
-    args = parser.parse_args()
+    args = parser.parse_known_args()[0]
     return args
 
 def loadBert(args,device):
