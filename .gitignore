@@ -19,3 +19,6 @@ analysis/
 
 # 排除 Weight & Biases 資料夾
 wandb/
+
+# 排除實驗結果讀取程式
+load_result.py
