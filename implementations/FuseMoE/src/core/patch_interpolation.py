@@ -53,7 +53,7 @@ class PatchInterpolation(nn.Module):
             mask = mask.unsqueeze(-1)
 
         # 建立有效 Mask 避免 Padding 被考慮成有實際觀測值的時間點
-        valid_mask = ((1 - mask).sum(dim=-1) > 0) # (B, L)
+        valid_mask = (mask == 0).any(dim=-1) # (B, L)
 
         # 計算每個時間點屬於哪一個 patch ID (範圍：0 ~ n_patch-1)
         patch_width = 1.0 / self.n_patch
