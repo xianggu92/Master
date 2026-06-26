@@ -19,7 +19,7 @@ class PatchInterpolation(nn.Module):
 
         if use_global:
             self.global_encoder = multiTimeAttention(input_dim, hidden_dim, embed_time, num_heads)
-            self.score_layer = nn.Linear(self.nhidden, self.nhidden)
+            self.score_layer = nn.Linear(hidden_dim, hidden_dim)
 
     def forward(self, query, key, value, x_time, mask):
         # 取得全局特徵
@@ -53,7 +53,7 @@ class PatchInterpolation(nn.Module):
             mask = mask.unsqueeze(-1)
 
         # 建立有效 Mask 避免 Padding 被考慮成有實際觀測值的時間點
-        valid_mask = (mask == 0).any(dim=-1) # (B, L)
+        valid_mask = (mask == 1).any(dim=-1) # (B, L)
 
         # 計算每個時間點屬於哪一個 patch ID (範圍：0 ~ n_patch-1)
         patch_width = 1.0 / self.n_patch
@@ -82,7 +82,7 @@ class PatchInterpolation(nn.Module):
         # 初始化目標張量，預設填入 Padding 值
         new_key = torch.zeros((B * self.n_patch, max_len, D), device=device)
         new_value = torch.zeros((B * self.n_patch, max_len, value.shape[-1]), device=device)
-        new_mask = torch.ones((B * self.n_patch, max_len, mask.shape[-1]), device=device, dtype=mask.dtype) # 預設全遮
+        new_mask = torch.zeros((B * self.n_patch, max_len, mask.shape[-1]), device=device, dtype=mask.dtype) # 預設全遮
         new_time = torch.zeros((B * self.n_patch, max_len, 1), device=device)
 
         # 計算展平後的新座標索引： (b * n_patch + p_id) * max_len + offset
