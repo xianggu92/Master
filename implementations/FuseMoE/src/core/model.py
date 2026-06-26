@@ -223,7 +223,7 @@ class MULTCrossModel(nn.Module):
                 x_ts_irg = torch.cat((x_ts, x_ts_mask), 2)
                 x_ts_mask = torch.cat((x_ts_mask, x_ts_mask), 2)
 
-                proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, ts_tt_list)
+                proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, x_ts_mask)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
 
             elif self.irregular_learn_emb_text == 'PatchInterpolation':
