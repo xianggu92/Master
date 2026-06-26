@@ -34,9 +34,7 @@ from transformers import (AutoTokenizer,
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Alignment text and ts data", allow_abbrev=False)
-    parser.add_argument(
-            "--task", type=str, default="ihm"
-        )
+    parser.add_argument("--task", type=str, default="ihm")
     parser.add_argument("--file_path", type=str, default="Data", help="A path to dataset folder")
     parser.add_argument("--output_dir", type=str, default="Checkpoints", help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training.")
