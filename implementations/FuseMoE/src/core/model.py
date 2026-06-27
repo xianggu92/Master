@@ -320,7 +320,7 @@ class MULTCrossModel(nn.Module):
 
         if "ECG" in self.modeltype:
             # compute irregular ECG attention
-            if self.irregular_learn_emb_cxr:
+            if self.irregular_learn_emb_ecg:
                 time_key = self.learn_time_embedding(ecg_time).to(self.device)
                 if not self.irregular_learn_emb_ts:
                     time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
