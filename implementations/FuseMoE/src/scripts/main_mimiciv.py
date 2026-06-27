@@ -6,10 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 
-from core.model import *
-from core.train import *
-from utils.checkpoint import *
-from utils.util import *
+from core.model import MULTCrossModel, eval_test, make_save_dir, parse_args, set_seed, trainer_irg
 from accelerate import Accelerator
 from preprocessing.data_mimiciv import data_perpare
 import wandb

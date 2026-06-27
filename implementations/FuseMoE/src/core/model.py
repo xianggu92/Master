@@ -2,8 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import math
-from core.module import *
-from core.interp import *
+from core.module import TransformerCrossEncoder, gateMLP, multiTimeAttention
 from core.patch_interpolation import PatchInterpolation
 
 

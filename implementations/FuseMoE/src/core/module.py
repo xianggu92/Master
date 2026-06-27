@@ -10,8 +10,6 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 from utils.config import MoEConfig
 from core.sparse_moe import MoE
-from torch import Tensor
-from typing import Optional
 
 
 class gateMLP(nn.Module):
