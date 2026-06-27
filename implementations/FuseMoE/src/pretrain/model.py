@@ -7,7 +7,7 @@ from core.module import multiTimeAttention
 
 
 class enc_mtan_rnn(nn.Module):
-    def __init__(self, input_dim, n_ref_point, latent_dim=2, nhidden=16, embed_time=16, num_heads=1):
+    def __init__(self, input_dim, n_ref_point, nhidden=16, embed_time=16, num_heads=1):
         super(enc_mtan_rnn, self).__init__()
         self.embed_time = embed_time
         self.dim = input_dim
@@ -19,9 +19,9 @@ class enc_mtan_rnn(nn.Module):
         self.att = multiTimeAttention(2*input_dim, nhidden, embed_time, num_heads)
         self.gru_rnn = nn.GRU(nhidden, nhidden, bidirectional=True, batch_first=True)
         self.hiddens_to_z0 = nn.Sequential(
-            nn.Linear(2*nhidden, 50),
+            nn.Linear(2*nhidden, nhidden),
             nn.ReLU(),
-            nn.Linear(50, latent_dim))
+            nn.Linear(nhidden, nhidden))
         self.periodic = nn.Linear(1, embed_time-1)
         self.linear = nn.Linear(1, 1)
         
@@ -31,9 +31,9 @@ class enc_mtan_rnn(nn.Module):
         out1 = self.linear(tt)
         return torch.cat([out1, out2], -1)
        
-    def forward(self, x, time_steps):
-        mask = x[:, :, self.dim:]
-        mask = torch.cat((mask, mask), 2)
+    def forward(self, x, mask, time_steps):
+        x = torch.cat((x, mask), dim=2)
+        mask = torch.cat((mask, mask), dim=2)
         
         key = self.learn_time_embedding(time_steps)
         query = self.learn_time_embedding(self.query.unsqueeze(0))
@@ -45,7 +45,7 @@ class enc_mtan_rnn(nn.Module):
 
 
 class dec_mtan_rnn(nn.Module):
-    def __init__(self, input_dim, n_ref_point, latent_dim=2, nhidden=16, 
+    def __init__(self, input_dim, n_ref_point, nhidden=16, 
                  embed_time=16, num_heads=1):
         super(dec_mtan_rnn, self).__init__()
         self.embed_time = embed_time
@@ -56,11 +56,11 @@ class dec_mtan_rnn(nn.Module):
         self.register_buffer('query', torch.linspace(0, 1., self.n_ref_point))
         
         self.att = multiTimeAttention(2*nhidden, 2*nhidden, embed_time, num_heads)
-        self.gru_rnn = nn.GRU(latent_dim, nhidden, bidirectional=True, batch_first=True)    
+        self.gru_rnn = nn.GRU(nhidden, nhidden, bidirectional=True, batch_first=True)    
         self.z0_to_obs = nn.Sequential(
-            nn.Linear(2*nhidden, 50),
+            nn.Linear(2*nhidden, nhidden),
             nn.ReLU(),
-            nn.Linear(50, input_dim))
+            nn.Linear(nhidden, nhidden))
         
         self.periodic = nn.Linear(1, embed_time-1)
         self.linear = nn.Linear(1, 1)
@@ -96,15 +96,9 @@ class DeltaPredictor(nn.Module):
             nhidden=nhidden, embed_time=embed_time, num_heads=num_heads
         )
 
-    def forward(self, x, src_time, tgt_time):
-        """
-        Args:
-            x: (B, src_seq_len, 2*input_dim)
-            src_time: (B, src_seq_len)
-            tgt_time: (B, tgt_seq_len)
-        """
-        z = self.encoder(x, src_time)
-        preds = self.decoder(z, tgt_time)
+    def forward(self, x, mask, time):
+        z = self.encoder(x, mask, time)
+        preds = self.decoder(z, mask, time)
         
         return preds
 
