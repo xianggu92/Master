@@ -226,7 +226,7 @@ class MULTCrossModel(nn.Module):
                 proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, x_ts_mask)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
 
-            elif self.irregular_learn_emb_text == 'PatchInterpolation':
+            elif self.irregular_learn_emb_ts == 'PatchInterpolation':
                 # 需要展開 Query 的 Batch 維度，之後分塊才能跟 Key 的 Batch 維度對齊
                 time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).expand(ts_tt_list.shape[0], -1, -1)
                 time_key_ts = self.learn_time_embedding(ts_tt_list)
