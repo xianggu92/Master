@@ -64,10 +64,11 @@ class multiTimeAttention(nn.Module):
         d_k = query.size(-1)
         scores = torch.matmul(query, key.transpose(-2, -1)) \
                  / math.sqrt(d_k)
-        scores = scores.unsqueeze(-1).repeat_interleave(dim, dim=-1)
+        scores = scores.unsqueeze(-1).repeat_interleave(dim, dim=-1) # (b, h, n_ref_point, len, n_var)
         if mask is not None:
+            # 非時間序列模態的遮罩要補上特徵維度
             if len(mask.shape)==3:
-                mask=mask.unsqueeze(-1)
+                mask=mask.unsqueeze(-1) # (b, 1, 1, len, n_var)
 
             scores = scores.masked_fill(mask.unsqueeze(-3) == 0, -10000)
         p_attn = F.softmax(scores, dim=-2)
