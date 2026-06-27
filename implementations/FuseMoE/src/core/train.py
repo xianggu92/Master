@@ -33,7 +33,7 @@ def eval_test(args, model, test_data_loader, device):
         print(test_val)
         for eval_type, val in test_val.items():
             result_dict[seed][eval_type]={}
-            # result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
+            result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
             result_dict[seed][eval_type]['test']=test_val[eval_type]
 
     with open(rootdir+"/result.pkl","wb") as f:
