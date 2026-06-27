@@ -31,9 +31,6 @@ def main():
         set_seed(args.seed)
 
     make_save_dir(args)
-
-    if args.mode == 'train' and args.wandb:
-        wandb.init(project=f"Preliminary-Experiment-FuseMoE-{args.task}", name=args.ck_file_path.split('/')[-2], save_code=True)
     
     if args.mode=='train':
         train_dataset, train_sampler, train_dataloader = data_perpare(args, 'train')
@@ -45,7 +42,12 @@ def main():
     model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.ts_learning_rate)
 
+
     if args.mode == 'train':
+        if args.wandb:
+            wandb.init(project=f"Preliminary-Experiment-FuseMoE-{args.task}", name=args.ck_file_path.split('/')[-2])
+            wandb.watch(model)
+
         model, optimizer, train_dataloader,val_dataloader,test_data_loader = \
         accelerator.prepare(model, optimizer, train_dataloader, val_dataloader, test_data_loader)
     elif args.mode == 'test':
@@ -55,6 +57,7 @@ def main():
     if args.mode == 'train':
         trainer_irg(model=model, args=args, accelerator=accelerator, train_dataloader=train_dataloader,\
             dev_dataloader=val_dataloader, test_data_loader=test_data_loader, device=device, optimizer=optimizer)
+        
     eval_test(args, model, test_data_loader, device)
 
     print(f"New maximum memory allocated on GPU: {torch.cuda.max_memory_allocated(device)} bytes")
