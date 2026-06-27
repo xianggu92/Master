@@ -68,9 +68,11 @@ class multiTimeAttention(nn.Module):
         if mask is not None:
             # 非時間序列模態的遮罩要補上特徵維度
             if len(mask.shape)==3:
-                mask=mask.unsqueeze(-1) # (b, 1, 1, len, n_var)
-
-            scores = scores.masked_fill(mask.unsqueeze(-3) == 0, -10000)
+                # (b, 1, len, n_var) for time series
+                # (b, 1, len, 1) for others
+                mask=mask.unsqueeze(-1)
+                
+            scores = scores.masked_fill(mask.unsqueeze(-3) == 0, -10000) # (b, 1, 1, len, n_var)
         p_attn = F.softmax(scores, dim=-2)
         if dropout is not None:
             p_attn=F.dropout(p_attn, p=dropout, training=self.training)
