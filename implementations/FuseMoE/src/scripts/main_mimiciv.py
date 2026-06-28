@@ -9,12 +9,10 @@ import os
 from core.model import MULTCrossModel
 from core.train import eval_test, trainer_irg
 from utils.checkpoint import make_save_dir
-from utils.util import parse_args
-from transformers import set_seed
+from utils.util import parse_args, set_seed
 from accelerate import Accelerator
 from preprocessing.data_mimiciv import data_perpare
 import wandb
-
 
 
 def main():

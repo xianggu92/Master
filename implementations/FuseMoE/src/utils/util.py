@@ -6,17 +6,11 @@ sys.path.insert(0, '../ClinicalNotes_TimeSeries/models')
 import pickle
 import re
 import numpy as np
-import json
-from preprocessing.data import *
-import statistics as stat
-logger = None
 import  argparse
 import pickle
-from accelerate import Accelerator
 from sklearn import metrics
-import pdb
-import logging
-from datetime import datetime
+import random
+import torch
 
 from transformers import (AutoTokenizer,
                           AutoModel,
@@ -25,7 +19,6 @@ from transformers import (AutoTokenizer,
                           BertTokenizer,
                           BertModel,
                           get_scheduler,
-                          set_seed,
                           BertPreTrainedModel,
                           LongformerConfig,
                           LongformerModel,
@@ -291,21 +284,15 @@ def merge_reg_irg(dataPath_reg, dataPath_irg):
         pickle.dump(data_reg,f)
 
 
-def get_logger(args):
-    logger = logging.getLogger("logger")
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-
-    file_handler = logging.FileHandler(os.path.join(args.ck_file_path, 'log', str(args.seed) +'.log'), mode="w")
-    file_handler.setLevel(logging.INFO)
-
-    formatter = logging.Formatter('%(asctime)s - %(filename)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-    file_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
-
-    return logger
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
