@@ -50,7 +50,7 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
     for epoch in range(args.num_train_epochs):
         model.train()
 
-        for step, batch in enumerate(tqdm(train_dataloader)):
+        for step, batch in enumerate(tqdm(train_dataloader, ncols=40)):
             global_step += 1
 
             result = model(**batch)
@@ -111,7 +111,7 @@ def evaluate_irg(args, device, data_loader, model):
     model.eval()
     eval_logits = []
     eval_example = []
-    for idx, batch in enumerate(tqdm(data_loader)):
+    for idx, batch in enumerate(tqdm(data_loader, ncols=40)):
         labels = batch.pop('labels')
 
         with torch.no_grad():
