@@ -22,3 +22,6 @@ wandb/
 
 # 排除實驗結果讀取程式
 load_result.py
+
+# 排除 FuseMoE 原始程式碼
+FuseMoE-main/
