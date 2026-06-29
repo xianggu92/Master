@@ -13,12 +13,12 @@ mm_dir = "/mnt/data/yihua/master/datasets/mimic-iv"
 output_dir = os.path.join(mm_dir, "preprocessing")
 
 
-restrict_24_hours = True
 include_notes = True
-include_cxr = True
-include_ecg = True
+include_cxr = False
+include_ecg = False
 standard_scale = True
 include_missing = False
+restrict_24_hours = True
 
 
 # ireg_vitals_ts_df = pd.read_pickle(os.path.join(output_dir, "ts_vitals_icu.pkl"))
@@ -33,43 +33,6 @@ imputed_vitals = imputed_vitals[imputed_vitals['timedelta'] >= 0]
 if restrict_24_hours:
     ireg_vitals_ts_df = ireg_vitals_ts_df[ireg_vitals_ts_df['timedelta'] <= 24]
     imputed_vitals = imputed_vitals[imputed_vitals['timedelta'] <= 24]
-
-
-variable_ranges = pd.read_csv('/mnt/nfs_share/Public_Data/Dataset_MIMICs/physionet.org/files/mimic-iv/2.2/variable_ranges.csv')
-rename_dict = {
-    'Diastolic blood pressure': 'Diastolic BP',
-    'Glascow coma scale eye opening': 'GCS - Eye Opening',
-    'Glascow coma scale motor response': 'GCS - Motor Response',
-    'Glascow coma scale verbal response': 'GCS - Verbal Response',
-    'Heart rate': 'Heart Rate',
-    'Mean blood pressure': 'Mean BP',
-    'Oxygen saturation': 'O2 Saturation',
-    'Platelets': 'Platelet Count',
-    'Respiratory rate': 'Respiratory Rate',
-    'Systolic blood pressure': 'Systolic BP',
-    'Blood urea nitrogen': 'Urea Nitrogen',
-    'White blood cell count': 'White Blood Cells',
-}
-variable_ranges['LEVEL2'] = variable_ranges['LEVEL2'].replace(rename_dict)
-variable_ranges
-
-
-# Set outliers to NaN
-for index, row in variable_ranges.iterrows():
-    var_name = row['LEVEL2']
-    valid_low = row['VALID LOW']
-    valid_high = row['VALID HIGH']
-    
-    if var_name in ireg_vitals_ts_df.columns and ~np.isnan(valid_low) and ~np.isnan(valid_high):
-        ireg_vitals_ts_df[var_name] = ireg_vitals_ts_df[var_name].where(
-            ireg_vitals_ts_df[var_name].between(valid_low, valid_high), 
-            np.nan
-        )
-
-# Drop rows that contain NaN for all variable columns
-cols = ireg_vitals_ts_df.columns.tolist()
-cols = [col for col in cols if col not in ['subject_id', 'hadm_id', 'stay_id', 'timedelta']]
-ireg_vitals_ts_df = ireg_vitals_ts_df.dropna(subset=cols, how='all')
 
 
 if include_notes:
@@ -166,6 +129,20 @@ if standard_scale:
     scalers = {}
 
     for col in cols:
+        # 計算第 25 百分位數 (Q1) 與 第 75 百分位數 (Q3)
+        q1 = train_ireg_ts_df[col].quantile(0.25)
+        q3 = train_ireg_ts_df[col].quantile(0.75)
+
+        # 計算 IQR
+        iqr = q3 - q1
+
+        # 定義合理範圍的上下界
+        lower_bound = q1 - (1.5 * iqr)
+        upper_bound = q3 + (1.5 * iqr)
+
+        # 使用 pandas 的 clip 函數進行裁剪
+        ireg_vitals_ts_df[col] = ireg_vitals_ts_df[col].clip(lower=lower_bound, upper=upper_bound)
+        
         scaler = StandardScaler()
         scaler.fit(train_ireg_ts_df[[col]])
         ireg_vitals_ts_df[col] = scaler.transform(ireg_vitals_ts_df[[col]])
