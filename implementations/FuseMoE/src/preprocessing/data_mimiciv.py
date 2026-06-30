@@ -128,7 +128,7 @@ class TSNote_Irg(Dataset):
 
         if 'TS' in self.modeltype:
             ts = data_detail['irg_ts']
-            ts_tt = data_detail["ts_tt"]
+            ts_tt = data_detail["ts_tt"].astype(np.float32)
             ts_mask = data_detail['irg_ts_mask']
 
             # 前處理 ipynb 檔沒有插值到最大的時間點，因此要重新處理一次插值後的 time series
@@ -141,7 +141,7 @@ class TSNote_Irg(Dataset):
             # 在 F.impute 之後才能轉換成 tensor，不然處理速度會很慢
             ts = torch.tensor(ts, dtype=torch.float)
             ts_mask = torch.tensor(ts_mask, dtype=torch.long)
-            ts_tt = torch.tensor([t/self.tt_max for t in ts_tt], dtype=torch.float)
+            ts_tt = torch.tensor(ts_tt/self.tt_max, dtype=torch.float)
 
             # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
             if 'pheno' in self.args.task:
@@ -164,16 +164,15 @@ class TSNote_Irg(Dataset):
                 text_emb = data_detail['text_embeddings']
                 text_emb = torch.tensor(text_emb, dtype=torch.float)
 
-                text_time_to_end = data_detail["text_time_to_end"]
-                text_time_to_end = [1-t/self.tt_max for t in text_time_to_end]
-                text_time_to_end = torch.tensor(text_time_to_end, dtype=torch.float)
+                text_time_to_end = data_detail["text_time_to_end"].astype(np.float32)
+                text_time_to_end = torch.tensor(text_time_to_end/self.tt_max, dtype=torch.float)
 
                 text_time_mask = [1] * len(text_time_to_end)
                 text_time_mask = torch.tensor(text_time_mask, dtype=torch.long)
 
                 # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
                 if 'pheno' in self.args.task:
-                    mask_24hr = text_time_to_end >= 0
+                    mask_24hr = text_time_to_end <= 1
                     text_emb = text_emb[mask_24hr]
                     text_time_to_end = text_time_to_end[mask_24hr]
                     text_time_mask = text_time_mask[mask_24hr]
@@ -198,14 +197,14 @@ class TSNote_Irg(Dataset):
                 cxr_feats = torch.tensor(cxr_feats, dtype=torch.float)
 
                 cxr_time_to_end = data_detail['cxr_time'].astype(np.float32)
-                cxr_time_to_end = torch.tensor(1-cxr_time_to_end/self.tt_max, dtype=torch.float)
+                cxr_time_to_end = torch.tensor(cxr_time_to_end/self.tt_max, dtype=torch.float)
 
                 cxr_time_mask = [1] * len(cxr_time_to_end)
                 cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
 
                 # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
                 if 'pheno' in self.args.task:
-                    mask_24hr = cxr_time_to_end >= 0
+                    mask_24hr = cxr_time_to_end <= 1
                     cxr_feats = cxr_feats[mask_24hr]
                     cxr_time_to_end = cxr_time_to_end[mask_24hr]
                     cxr_time_mask = cxr_time_mask[mask_24hr]
@@ -237,14 +236,14 @@ class TSNote_Irg(Dataset):
                 ecg_feats[torch.abs(ecg_feats) > 1000] = 0
 
                 ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
-                ecg_time_to_end = torch.tensor(1-ecg_time_to_end/self.tt_max, dtype=torch.float)
+                ecg_time_to_end = torch.tensor(ecg_time_to_end/self.tt_max, dtype=torch.float)
 
                 ecg_time_mask = [1] * len(ecg_time_to_end)
                 ecg_time_mask = torch.tensor(ecg_time_mask, dtype=torch.long)
 
                 # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
                 if 'pheno' in self.args.task:
-                    mask_24hr = ecg_time_to_end >= 0
+                    mask_24hr = ecg_time_to_end <= 1
                     ecg_feats = ecg_feats[mask_24hr]
                     ecg_time_to_end = ecg_time_to_end[mask_24hr]
                     ecg_time_mask = ecg_time_mask[mask_24hr]
