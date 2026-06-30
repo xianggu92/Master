@@ -175,7 +175,7 @@ class TSNote_Irg(Dataset):
                 cxr_feats = torch.tensor(cxr_feats, dtype=torch.float)
 
                 cxr_time_to_end = data_detail['cxr_time'].astype(np.float32)
-                cxr_time_to_end = torch.tensor(cxr_time_to_end, dtype=torch.float)
+                cxr_time_to_end = torch.tensor(1-cxr_time_to_end/self.tt_max, dtype=torch.float)
 
                 cxr_time_mask = [1] * len(cxr_time_to_end)
                 cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
@@ -201,7 +201,7 @@ class TSNote_Irg(Dataset):
                 ecg_feats[torch.isinf(ecg_feats)] = 0
 
                 ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
-                ecg_time_to_end = torch.tensor(ecg_time_to_end, dtype=torch.float)
+                ecg_time_to_end = torch.tensor(1-ecg_time_to_end/self.tt_max, dtype=torch.float)
 
                 ecg_time_mask = [1] * len(ecg_time_to_end)
                 ecg_time_mask = torch.tensor(ecg_time_mask, dtype=torch.long)
