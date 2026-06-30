@@ -273,7 +273,7 @@ class MoE(nn.Module):
         if self.gating == 'softmax':
             clean_logits = x @ w_gate
         elif self.gating == 'laplace':
-            clean_logits = -torch.cdist(x, torch.t(w_gate).contiguous())
+            clean_logits = -torch.cdist(x, torch.t(w_gate))
         elif self.gating == 'gaussian':
             clean_logits = -torch.pow(torch.cdist(x, torch.t(w_gate)), 2)
 
