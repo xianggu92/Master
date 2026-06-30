@@ -200,6 +200,8 @@ class TSNote_Irg(Dataset):
                 # If any ecg_feats are inf, replace with 0
                 ecg_feats[torch.isinf(ecg_feats)] = 0
 
+                ecg_feats[torch.abs(ecg_feats) > 1000] = 0
+
                 ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
                 ecg_time_to_end = torch.tensor(1-ecg_time_to_end/self.tt_max, dtype=torch.float)
 
