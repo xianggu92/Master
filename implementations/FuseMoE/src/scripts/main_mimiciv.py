@@ -48,7 +48,6 @@ def main():
     if args.mode == 'train':
         if args.wandb:
             wandb.init(project=f"Preliminary-Experiment-FuseMoE-{args.task}", name=args.ck_file_path.split('/')[-2] + f'_seed{args.seed}')
-            wandb.watch(model, log='all')
 
         model, optimizer, train_dataloader,val_dataloader,test_data_loader = \
         accelerator.prepare(model, optimizer, train_dataloader, val_dataloader, test_data_loader)
