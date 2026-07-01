@@ -514,16 +514,8 @@ class TransformerCrossEncoderLayer(nn.Module):
         residual = x_list
         seq_len, bs = x_list[0].shape[0], x_list[0].shape[1]
         balance_loss = None
-
-        if torch.isnan(torch.cat(x_list, dim=1)).any():
-            print('transformer input has NaN')
-            return None, None
         
         x_list = [l(x) for l, x in zip(self.pre_self_attn_layer_norm, x_list)]
-
-        if torch.isnan(torch.cat(x_list, dim=1)).any():
-            print('pre_self_attn_layer_norm causes NaN')
-            return None, None
 
         output = [l(query=x, key=x, value=x) for l, x in zip(self.self_attns, x_list)]
         # attn: output[0][0].shape -> [48, 3, 128]; attn_weights: output[0][1].shape -> [3, 48, 48]
@@ -541,7 +533,6 @@ class TransformerCrossEncoderLayer(nn.Module):
             embeddings = torch.cat(x_mod_in, dim=1)
 
             if torch.isnan(embeddings).any():
-                print('MoE input has NaN')
                 return None, None
             
             moe_out, balance_loss = self.moe(x_mod_in, modalities=modality)
