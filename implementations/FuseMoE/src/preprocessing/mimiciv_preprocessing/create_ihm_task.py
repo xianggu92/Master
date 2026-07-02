@@ -1,4 +1,3 @@
-
 import os
 import sys
 import numpy as np
@@ -17,14 +16,11 @@ output_dir = os.path.join(mm_dir, "preprocessing")
 
 restrict_48_hours = True
 include_notes = True
-include_cxr = False
-include_ecg = False
+include_cxr = True
+include_ecg = True
 standard_scale = True
 include_missing = False
 
-
-# ireg_vitals_ts_df = pd.read_pickle(os.path.join(output_dir, "ts_vitals_icu.pkl"))
-# imputed_vitals = pd.read_pickle(os.path.join(output_dir, "imputed_ts_vitals_icu.pkl"))
 
 ireg_vitals_ts_df = pd.read_pickle(os.path.join(output_dir, "ts_labs_vitals_icu.pkl"))
 imputed_vitals = pd.read_pickle(os.path.join(output_dir, "imputed_ts_labs_vitals_icu.pkl"))
@@ -39,7 +35,6 @@ if restrict_48_hours:
 
 if include_notes:
     notes_df = pd.read_pickle(os.path.join(output_dir, "icu_notes_text_embeddings.pkl"))
-    # notes_df = pd.read_pickle(os.path.join(output_dir, "notes_text.pkl"))
     notes_df = notes_df[notes_df['stay_id'].notnull()]
 
     notes_df = notes_df[notes_df['icu_time_delta'] >= 0]
@@ -85,7 +80,6 @@ if include_ecg:
 admissions_df = pd.read_csv(os.path.join(mimic_iv_path, "hosp", "admissions.csv"))
 admissions_df = admissions_df.rename(columns={"hospital_expire_flag": "died"})
 admissions_df = admissions_df[["subject_id", "hadm_id", "died"]]
-
 
 
 if not include_missing:
@@ -136,8 +130,6 @@ cols = train_ireg_ts_df.columns.tolist()
 cols = [col for col in cols if col not in ['subject_id', 'hadm_id', 'stay_id', 'timedelta']]
 
 if standard_scale:
-    scalers = {}
-
     for col in cols:
         # 計算第 25 百分位數 (Q1) 與 第 75 百分位數 (Q3)
         q1 = train_ireg_ts_df[col].quantile(0.25)
@@ -156,34 +148,31 @@ if standard_scale:
         scaler = StandardScaler()
         scaler.fit(train_ireg_ts_df[[col]])
         ireg_vitals_ts_df[col] = scaler.transform(ireg_vitals_ts_df[[col]])
-        scalers[col] = scaler
 
         scaler = StandardScaler()
         scaler.fit(train_imputed_df[[col]])
         imputed_vitals[col] = scaler.transform(imputed_vitals[[col]])
 
-base_name = "scalers_ihm"
-if restrict_48_hours:
-    base_name += "-48"
-else:
-    base_name += "-all"
-
-if include_notes:
-    base_name += "-notes"
-
-if include_cxr:
-    base_name += "-cxr"
 
 if include_ecg:
-    base_name += "-ecg"
+    train_ecg_df = ecg_df[ecg_df['stay_id'].isin(train_stays)].copy()
 
-if include_missing:
-    base_name += "-missingInd"
+    X_train = np.vstack(train_ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
 
-f_path = os.path.join(output_dir, f"{base_name}.pkl")
-with open(f_path, 'wb') as f:
-    pickle.dump(scalers, f)
+    X_train[np.isnan(X_train)] = 0
+    X_train[np.isinf(X_train)] = 0
 
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+
+    X = np.vstack(ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
+
+    X[np.isnan(X)] = 0
+    X[np.isinf(X)] = 0
+
+    X_scaled = scaler.transform(X)
+
+    ecg_df['embeddings'] = [row for row in X_scaled]
 
 
 def get_stay_list(stays):
@@ -268,11 +257,11 @@ if restrict_48_hours:
 else:
     base_name += "-all"
 
-if include_notes:
-    base_name += "-notes"
-
 if include_cxr:
     base_name += "-cxr"
+
+if include_notes:
+    base_name += "-notes"
 
 if include_ecg:
     base_name += "-ecg"

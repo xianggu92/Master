@@ -13,12 +13,12 @@ mm_dir = "/mnt/data/yihua/master/datasets/mimic-iv"
 output_dir = os.path.join(mm_dir, "preprocessing")
 
 
+restrict_24_hours = True
 include_notes = True
-include_cxr = False
-include_ecg = False
+include_cxr = True
+include_ecg = True
 standard_scale = True
 include_missing = False
-restrict_24_hours = True
 
 
 # ireg_vitals_ts_df = pd.read_pickle(os.path.join(output_dir, "ts_vitals_icu.pkl"))
@@ -126,8 +126,6 @@ cols = train_ireg_ts_df.columns.tolist()
 cols = [col for col in cols if col not in ['subject_id', 'hadm_id', 'stay_id', 'timedelta']]
 
 if standard_scale:
-    scalers = {}
-
     for col in cols:
         # 計算第 25 百分位數 (Q1) 與 第 75 百分位數 (Q3)
         q1 = train_ireg_ts_df[col].quantile(0.25)
@@ -142,38 +140,36 @@ if standard_scale:
 
         # 使用 pandas 的 clip 函數進行裁剪
         ireg_vitals_ts_df[col] = ireg_vitals_ts_df[col].clip(lower=lower_bound, upper=upper_bound)
-        
+
         scaler = StandardScaler()
         scaler.fit(train_ireg_ts_df[[col]])
         ireg_vitals_ts_df[col] = scaler.transform(ireg_vitals_ts_df[[col]])
-        scalers[col] = scaler
 
         scaler = StandardScaler()
         scaler.fit(train_imputed_df[[col]])
         imputed_vitals[col] = scaler.transform(imputed_vitals[[col]])
 
-base_name = "scalers_pheno"
-if restrict_24_hours:
-    base_name += "-24"
-else:
-    base_name += "-all"
 
-if include_notes:
-    base_name += "-notes"
-
-if include_cxr:
-    base_name += "-cxr"
 
 if include_ecg:
-    base_name += "-ecg"
-    
-if include_missing:
-    base_name += "-missingInd"
+    train_ecg_df = ecg_df[ecg_df['stay_id'].isin(train_stays)].copy()
 
-f_path = os.path.join(output_dir, f"{base_name}.pkl")
-with open(f_path, 'wb') as f:
-    pickle.dump(scalers, f)
+    X_train = np.vstack(train_ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
 
+    X_train[np.isnan(X_train)] = 0
+    X_train[np.isinf(X_train)] = 0
+
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+
+    X = np.vstack(ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
+
+    X[np.isnan(X)] = 0
+    X[np.isinf(X)] = 0
+
+    X_scaled = scaler.transform(X)
+
+    ecg_df['embeddings'] = [row for row in X_scaled]
 
 
 import yaml
@@ -325,11 +321,11 @@ if restrict_24_hours:
 else:
     base_name += "-all"
 
-if include_notes:
-    base_name += "-notes"
-
 if include_cxr:
     base_name += "-cxr"
+
+if include_notes:
+    base_name += "-notes"
 
 if include_ecg:
     base_name += "-ecg"
