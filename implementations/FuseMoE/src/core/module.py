@@ -533,6 +533,7 @@ class TransformerCrossEncoderLayer(nn.Module):
             embeddings = torch.cat(x_mod_in, dim=1)
 
             if torch.isnan(embeddings).any():
+                raise ValueError('Error: This batch encountered NaN')
                 return None, None
             
             moe_out, balance_loss = self.moe(x_mod_in, modalities=modality)
