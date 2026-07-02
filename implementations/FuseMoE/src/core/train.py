@@ -75,6 +75,7 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
             accelerator.backward(total_loss)
 
             if (step+1) % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+                accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 model.zero_grad()
 
