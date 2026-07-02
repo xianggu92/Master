@@ -143,23 +143,12 @@ class TSNote_Irg(Dataset):
             ts_mask = torch.tensor(ts_mask, dtype=torch.long)
             ts_tt = torch.tensor(ts_tt/self.tt_max, dtype=torch.float)
 
-            # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
-            if 'pheno' in self.args.task:
-                mask_24hr = ts_tt <= 1
-                ts = ts[mask_24hr]
-                ts_mask = ts_mask[mask_24hr]
-                ts_tt = ts_tt[mask_24hr]
-
             x['ts'] = ts
             x['ts_tt'] = ts_tt
             x['ts_mask'] = ts_mask
             x['reg_ts'] = reg_ts
 
         if 'Text' in self.modeltype:
-            # 如果 pheno 任務在 24 小時內沒有資料就視為缺失
-            if 'pheno' in self.args.task and (data_detail['text_time_to_end'] <= 24).any() == False:
-                data_detail['text_missing'] = True
-        
             if not data_detail['text_missing']:
                 text_emb = data_detail['text_embeddings']
                 text_emb = torch.tensor(text_emb, dtype=torch.float)
@@ -169,13 +158,6 @@ class TSNote_Irg(Dataset):
 
                 text_time_mask = [1] * len(text_time_to_end)
                 text_time_mask = torch.tensor(text_time_mask, dtype=torch.long)
-
-                # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
-                if 'pheno' in self.args.task:
-                    mask_24hr = text_time_to_end <= 1
-                    text_emb = text_emb[mask_24hr]
-                    text_time_to_end = text_time_to_end[mask_24hr]
-                    text_time_mask = text_time_mask[mask_24hr]
             else:
                 text_emb = torch.zeros((1, 768))
                 text_time_to_end = torch.zeros(1)
@@ -188,10 +170,6 @@ class TSNote_Irg(Dataset):
             x['text_data'] = data_detail['text_data']
 
         if 'CXR' in self.modeltype:
-            # 如果 pheno 任務在 24 小時內沒有資料就視為缺失
-            if 'pheno' in self.args.task and (data_detail['cxr_time'] <= 24).any() == False:
-                data_detail['cxr_missing'] = True
-
             if not data_detail['cxr_missing']:
                 cxr_feats = data_detail['cxr_feats']
                 cxr_feats = torch.tensor(cxr_feats, dtype=torch.float)
@@ -201,13 +179,6 @@ class TSNote_Irg(Dataset):
 
                 cxr_time_mask = [1] * len(cxr_time_to_end)
                 cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
-
-                # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
-                if 'pheno' in self.args.task:
-                    mask_24hr = cxr_time_to_end <= 1
-                    cxr_feats = cxr_feats[mask_24hr]
-                    cxr_time_to_end = cxr_time_to_end[mask_24hr]
-                    cxr_time_mask = cxr_time_mask[mask_24hr]
             else:
                 cxr_feats = torch.zeros((1, 1024))
                 cxr_time_to_end = torch.zeros(1)
@@ -219,34 +190,15 @@ class TSNote_Irg(Dataset):
             x['cxr_missing'] = data_detail['cxr_missing']
 
         if 'ECG' in self.modeltype:
-            # 如果 pheno 任務在 24 小時內沒有資料就視為缺失
-            if 'pheno' in self.args.task and (data_detail['ecg_time'] <= 24).any() == False:
-                data_detail['ecg_missing'] = True
-
             if not data_detail['ecg_missing']:
                 ecg_feats = data_detail['ecg_feats']
                 ecg_feats = torch.tensor(ecg_feats, dtype=torch.float)
-
-                # If any ecg_feats are nan, replace with 0
-                ecg_feats[torch.isnan(ecg_feats)] = 0
-
-                # If any ecg_feats are inf, replace with 0
-                ecg_feats[torch.isinf(ecg_feats)] = 0
-
-                ecg_feats[torch.abs(ecg_feats) > 1000] = 0
 
                 ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
                 ecg_time_to_end = torch.tensor(ecg_time_to_end/self.tt_max, dtype=torch.float)
 
                 ecg_time_mask = [1] * len(ecg_time_to_end)
                 ecg_time_mask = torch.tensor(ecg_time_mask, dtype=torch.long)
-
-                # 因為 pheno 的資料集包含整個 icu 期間的資料，所以要取出前 24 小時的資料
-                if 'pheno' in self.args.task:
-                    mask_24hr = ecg_time_to_end <= 1
-                    ecg_feats = ecg_feats[mask_24hr]
-                    ecg_time_to_end = ecg_time_to_end[mask_24hr]
-                    ecg_time_mask = ecg_time_mask[mask_24hr]
             else:
                 ecg_feats = torch.zeros((1, 256))
                 ecg_time_to_end = torch.zeros(1)
