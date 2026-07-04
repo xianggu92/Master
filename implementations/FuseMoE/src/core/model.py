@@ -103,7 +103,7 @@ class MULTCrossModel(nn.Module):
             if self.irregular_learn_emb_ts == 'mTAND':
                 self.time_attn_ts = multiTimeAttention(self.orig_d_ts*2, self.d_ts, args.embed_time, 8)
             elif self.irregular_learn_emb_ts == 'PatchInterpolation':
-                self.patch_interpolation_ts = PatchInterpolation(self.orig_d_ts*2, self.d_ts, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
+                self.patch_interpolation_ts = PatchInterpolation(self.orig_d_ts*2, self.d_ts, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point, args.use_global)
  
             if self.reg_ts:
                 self.orig_reg_d_ts=orig_reg_d_ts
@@ -126,7 +126,7 @@ class MULTCrossModel(nn.Module):
             if self.irregular_learn_emb_text == 'mTAND':
                 self.time_attn_text = multiTimeAttention(768, self.d_txt, args.embed_time, 8)
             elif self.irregular_learn_emb_ts == 'PatchInterpolation':
-                self.patch_interpolation_txt = PatchInterpolation(768, self.d_txt, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
+                self.patch_interpolation_txt = PatchInterpolation(768, self.d_txt, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point, args.use_global)
             else:
                 self.proj_txt = nn.Conv1d(self.orig_d_txt, self.d_txt, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
@@ -137,7 +137,7 @@ class MULTCrossModel(nn.Module):
             if self.irregular_learn_emb_cxr == 'mTAND':
                 self.time_attn_cxr = multiTimeAttention(1024, self.d_cxr, args.embed_time, 8)
             elif self.irregular_learn_emb_cxr == 'PatchInterpolation':
-                self.patch_interpolation_cxr = PatchInterpolation(1024, self.d_cxr, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
+                self.patch_interpolation_cxr = PatchInterpolation(1024, self.d_cxr, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point, args.use_global)
             else:
                 self.proj_cxr = nn.Conv1d(self.orig_d_cxr, self.d_cxr, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
@@ -148,7 +148,7 @@ class MULTCrossModel(nn.Module):
             if self.irregular_learn_emb_ecg == 'mTAND':
                 self.time_attn_ecg = multiTimeAttention(256, self.d_ecg, args.embed_time, 8)
             elif self.irregular_learn_emb_ecg == 'PatchInterpolation':
-                self.patch_interpolation_ecg = PatchInterpolation(256, self.d_ecg, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
+                self.patch_interpolation_ecg = PatchInterpolation(256, self.d_ecg, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point, args.use_global)
             else:
                 self.proj_ecg = nn.Conv1d(self.orig_d_ecg, self.d_ecg, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
