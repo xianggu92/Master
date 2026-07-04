@@ -136,6 +136,8 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_cxr == 'mTAND':
                 self.time_attn_cxr = multiTimeAttention(1024, self.d_cxr, args.embed_time, 8)
+            elif self.irregular_learn_emb_cxr == 'PatchInterpolation':
+                self.patch_interpolation_cxr = PatchInterpolation(1024, self.d_cxr, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
             else:
                 self.proj_cxr = nn.Conv1d(self.orig_d_cxr, self.d_cxr, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
@@ -145,6 +147,8 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_ecg == 'mTAND':
                 self.time_attn_ecg = multiTimeAttention(256, self.d_ecg, args.embed_time, 8)
+            elif self.irregular_learn_emb_ecg == 'PatchInterpolation':
+                self.patch_interpolation_ecg = PatchInterpolation(256, self.d_ecg, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_point)
             else:
                 self.proj_ecg = nn.Conv1d(self.orig_d_ecg, self.d_ecg, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size -1) / 2), bias=False)
 
@@ -277,7 +281,6 @@ class MULTCrossModel(nn.Module):
                 proj_x_txt = self.time_attn_text(time_query, time_key, x_txt, note_time_mask_list)
                 proj_x_txt = proj_x_txt.transpose(0, 1)
             elif self.irregular_learn_emb_text == 'PatchInterpolation':
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).expand(ts_tt_list.shape[0], -1, -1)
                 time_key = self.learn_time_embedding(note_time_list)
 
                 proj_x_txt = self.patch_interpolation_txt(time_query, time_key, x_txt, note_time_list, note_time_mask_list)
@@ -297,17 +300,23 @@ class MULTCrossModel(nn.Module):
 
         if "CXR" in self.modeltype:
             # compute irregular clinical notes attention
-            if self.irregular_learn_emb_cxr:
+            if self.irregular_learn_emb_cxr == 'mTAND':
                 time_key = self.learn_time_embedding(cxr_time).to(self.device)
                 if not self.irregular_learn_emb_ts:
                     time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
 
                 proj_x_cxr=self.time_attn_cxr(time_query, time_key, cxr_feats, cxr_time_mask)
                 proj_x_cxr=proj_x_cxr.transpose(0, 1)
+            elif self.irregular_learn_emb_cxr == 'PatchInterpolation':
+                time_key = self.learn_time_embedding(cxr_time)
+
+                proj_x_cxr = self.patch_interpolation_cxr(time_query, time_key, cxr_feats, cxr_time, cxr_time_mask)
+                proj_x_cxr = proj_x_cxr.transpose(0, 1)
             else:
                 cxr_feats = cxr_feats.transpose(1, 2)
                 proj_x_cxr = cxr_feats if self.orig_d_cxr == self.d_cxr else self.proj_cxr(cxr_feats)
                 proj_x_cxr = proj_x_cxr.permute(2, 0, 1)
+
             if cxr_missing is None or torch.all(cxr_missing == 0):
                 proj_x_cxr += self.token_type_embeddings(mod_count * torch.ones((self.args.tt_max, x_ts.shape[0]), dtype=torch.long, device=x_ts.device))
             elif not torch.all(cxr_missing == 0):
@@ -319,13 +328,18 @@ class MULTCrossModel(nn.Module):
 
         if "ECG" in self.modeltype:
             # compute irregular ECG attention
-            if self.irregular_learn_emb_ecg:
+            if self.irregular_learn_emb_ecg == 'mTAND':
                 time_key = self.learn_time_embedding(ecg_time).to(self.device)
                 if not self.irregular_learn_emb_ts:
                     time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
 
                 proj_x_ecg=self.time_attn_ecg(time_query, time_key, ecg_feats, ecg_time_mask)
                 proj_x_ecg=proj_x_ecg.transpose(0, 1)
+            elif self.irregular_learn_emb_ecg == 'PatchInterpolation':
+                time_key = self.learn_time_embedding(ecg_time)
+
+                proj_x_ecg = self.patch_interpolation_ecg(time_query, time_key, ecg_feats, ecg_time, ecg_time_mask)
+                proj_x_ecg = proj_x_ecg.transpose(0, 1)
             else:
                 ecg_feats = ecg_feats.transpose(1, 2)
                 proj_x_ecg = ecg_feats if self.orig_d_ecg == self.d_ecg else self.proj_ecg(ecg_feats)
