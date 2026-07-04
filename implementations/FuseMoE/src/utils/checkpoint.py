@@ -24,6 +24,10 @@ def make_save_dir(args):
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
         output_dir += "_Text_" + args.irregular_learn_emb_text + "_" + str(args.embed_time)
+    if args.irregular_learn_emb_cxr is not None and "CXR" in args.modeltype:
+        output_dir += "_CXR_" + args.irregular_learn_emb_cxr + "_" + str(args.embed_time)
+    if args.irregular_learn_emb_ecg is not None and 'ECG' in args.modeltype:
+        output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
 
     if args.irregular_learn_emb_ts == 'PatchInterpolation':
         output_dir += '_' + str(args.n_patch) + '_' + str(args.n_ref_point)
