@@ -172,7 +172,7 @@ class TSNote_Irg(Dataset):
         if 'CXR' in self.modeltype:
             if not data_detail['cxr_missing']:
                 cxr_feats = data_detail['cxr_feats']
-                cxr_feats = torch.tensor(cxr_feats, dtype=torch.float)
+                cxr_feats = torch.tensor(np.array(cxr_feats), dtype=torch.float)
 
                 cxr_time_to_end = data_detail['cxr_time'].astype(np.float32)
                 cxr_time_to_end = torch.tensor(cxr_time_to_end/self.tt_max, dtype=torch.float)
@@ -192,7 +192,7 @@ class TSNote_Irg(Dataset):
         if 'ECG' in self.modeltype:
             if not data_detail['ecg_missing']:
                 ecg_feats = data_detail['ecg_feats']
-                ecg_feats = torch.tensor(ecg_feats, dtype=torch.float)
+                ecg_feats = torch.tensor(np.array(ecg_feats), dtype=torch.float)
 
                 ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
                 ecg_time_to_end = torch.tensor(ecg_time_to_end/self.tt_max, dtype=torch.float)
