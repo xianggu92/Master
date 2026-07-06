@@ -436,7 +436,7 @@ class TransformerCrossEncoder(nn.Module):
         x_list = [self.embed_scale * x_in for x_in in x_in_list]
         if self.q_seq_len_1 is not None:
             for length in lengths:
-                positions.append(torch.tensor(torch.arange(length),dtype=torch.long).to(self.device))
+                positions.append(torch.arange(length, dtype=torch.long).to(self.device))
             x_list = [l(position_x).unsqueeze(0).transpose(0,1) + x for l, x, position_x in zip(self.embed_positions_q, x_list, positions)]
               # Add positional embedding
             x_list = [F.dropout(x, p=self.dropout, training=self.training) for x in x_list]
