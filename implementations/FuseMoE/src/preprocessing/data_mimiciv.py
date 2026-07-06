@@ -151,7 +151,7 @@ class TSNote_Irg(Dataset):
         if 'Text' in self.modeltype:
             if not data_detail['text_missing']:
                 text_emb = data_detail['text_embeddings']
-                text_emb = torch.tensor(text_emb, dtype=torch.float)
+                text_emb = torch.tensor(np.array(text_emb), dtype=torch.float)
 
                 text_time_to_end = data_detail["text_time_to_end"].astype(np.float32)
                 text_time_to_end = torch.tensor(text_time_to_end/self.tt_max, dtype=torch.float)
