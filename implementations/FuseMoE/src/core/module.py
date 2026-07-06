@@ -525,22 +525,22 @@ class TransformerCrossEncoderLayer(nn.Module):
         x_list = [r + x for r, x in zip(residual, x_list)]
 
         # moe or cross attn
-        residual = x_list
-        x_list = [l(x) for l, x in zip(self.pre_encoder_attn_layer_norm, x_list)]
-        if self.args.cross_method in ["moe", "hme"]:
-            x_mod_in = [torch.reshape(x, (bs, -1)) for x in x_list]
-            embd_len_list = [0] + list(np.cumsum([x.shape[1] for x in x_mod_in]))
-            embeddings = torch.cat(x_mod_in, dim=1)
+        if self.args.cross_method == 'moe':
+            residual = x_list
+            x_list = [l(x) for l, x in zip(self.pre_encoder_attn_layer_norm, x_list)]
+            if self.args.cross_method in ["moe", "hme"]:
+                x_mod_in = [torch.reshape(x, (bs, -1)) for x in x_list]
+                embd_len_list = [0] + list(np.cumsum([x.shape[1] for x in x_mod_in]))
+                embeddings = torch.cat(x_mod_in, dim=1)
 
-            if torch.isnan(embeddings).any():
-                raise ValueError('Error: This batch encountered NaN')
-                return None, None
-            
-            moe_out, balance_loss = self.moe(x_mod_in, modalities=modality)
-            x_mod_out = [moe_out[:, embd_len_list[i]:embd_len_list[i + 1]] for i in range(len(embd_len_list) - 1)]
-            x_allmod_output = [torch.reshape(x, (seq_len, bs, -1)) for x in x_mod_out]
-            moe_output = [F.dropout(x, p=self.res_dropout, training=self.training) for x in x_allmod_output]
-            x_list = [r + x for r, x in zip(residual, moe_output)]
+                if torch.isnan(embeddings).any():
+                    raise ValueError('Error: This batch encountered NaN')
+                
+                moe_out, balance_loss = self.moe(x_mod_in, modalities=modality)
+                x_mod_out = [moe_out[:, embd_len_list[i]:embd_len_list[i + 1]] for i in range(len(embd_len_list) - 1)]
+                x_allmod_output = [torch.reshape(x, (seq_len, bs, -1)) for x in x_mod_out]
+                moe_output = [F.dropout(x, p=self.res_dropout, training=self.training) for x in x_allmod_output]
+                x_list = [r + x for r, x in zip(residual, moe_output)]
 
         # FNN
         residual = x_list

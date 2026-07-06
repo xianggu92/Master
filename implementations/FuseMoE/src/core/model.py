@@ -154,7 +154,7 @@ class MULTCrossModel(nn.Module):
 
         output_dim = args.num_labels
 
-        if self.cross_method in ["self_cross", "moe", "hme"]:
+        if self.cross_method in ["self_cross", "moe", "hme", "dense"]:
             self.trans_self_cross_ts_txt = self.get_cross_network(args, layers=args.layers)
             dim = 0
             if "TS" in self.modeltype:
@@ -355,7 +355,7 @@ class MULTCrossModel(nn.Module):
             mod_count += 1
 
         balance_loss = None
-        if self.cross_method in ["self_cross", "moe", "hme"]:
+        if self.cross_method in ["self_cross", "moe", "hme", "dense"]:
             if self.modeltype == "TS_Text":
                 hiddens, balance_loss = self.trans_self_cross_ts_txt([proj_x_txt, proj_x_ts], ['txt', 'ts'])
             elif self.modeltype == "TS_CXR":
