@@ -29,7 +29,7 @@ def make_save_dir(args):
     if args.irregular_learn_emb_ecg is not None and 'ECG' in args.modeltype:
         output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
 
-    if args.irregular_learn_emb_ts == 'PatchInterpolation':
+    if 'PatchInterpolation' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
         output_dir += '_' + str(args.n_patch) + '_' + str(args.n_ref_point)
 
         if args.use_global:
