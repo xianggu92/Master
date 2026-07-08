@@ -1,7 +1,6 @@
 from utils.checkpoint import check_point
-from utils.util import metrics_multilabel
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score, precision_recall_curve, auc, f1_score, precision_score, recall_score
+from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score, average_precision_score
 import warnings 
 import wandb
 import torch
@@ -130,21 +129,18 @@ def evaluate_irg(args, device, data_loader, model):
     all_pred= np.where(all_logits > 0.5, 1, 0)
 
     if 'pheno' in args.task:
-        eval_vals = metrics_multilabel(all_label, all_logits, verbose=0)
-        eval_vals['macro_f1'] = f1_score(all_label, all_pred, average='macro')
-        eval_vals['macro_recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
-        eval_vals['macro_precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
+        eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits), average="macro")
+        eval_vals['auprc'] = average_precision_score(np.array(eval_example), np.array(eval_logits), average='macro')
+        eval_vals['f1'] = f1_score(all_label, all_pred, average='macro')
+        eval_vals['recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
+        eval_vals['precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
 
         check_point(eval_vals, model, eval_logits, args, "macro_f1")
 
     elif 'ihm' in args.task or 'los' in args.task:
-        eval_val = roc_auc_score(np.array(eval_example), np.array(eval_logits))
-        eval_vals['auc'] = eval_val
-        (precisions, recalls, thresholds) = precision_recall_curve(np.array(eval_example), np.array(eval_logits))
-        eval_val = auc(recalls, precisions)
-        eval_vals['auprc'] = eval_val
-        eval_val = f1_score(np.array(eval_example), all_pred)
-        eval_vals['f1'] = eval_val
+        eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits))
+        eval_vals['auprc'] = average_precision_score(np.array(eval_example), np.array(eval_logits))
+        eval_vals['f1'] = f1_score(np.array(eval_example), all_pred)
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred)
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred)
 

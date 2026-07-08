@@ -15,14 +15,8 @@ import torch
 from transformers import (AutoTokenizer,
                           AutoModel,
                           AutoConfig,
-                          AdamW,
                           BertTokenizer,
                           BertModel,
-                          get_scheduler,
-                          BertPreTrainedModel,
-                          LongformerConfig,
-                          LongformerModel,
-                          LongformerTokenizer,
                          )
 
 def parse_args():
@@ -134,28 +128,6 @@ def data_generate(args):
     val=val.tolist()
     test=test.tolist()
     return train, val, test
-
-
-def metrics_multilabel(y_true, predictions, verbose=1):
-    # import pdb; pdb.set_trace()
-    auc_scores = metrics.roc_auc_score(y_true, predictions, average=None)
-    ave_auc_micro = metrics.roc_auc_score(y_true, predictions,
-                                          average="micro")
-    ave_auc_macro = metrics.roc_auc_score(y_true, predictions,
-                                          average="macro")
-    ave_auc_weighted = metrics.roc_auc_score(y_true, predictions,
-                                             average="weighted")
-
-    if verbose:
-        # print("ROC AUC scores for labels:", auc_scores)
-        print("ave_auc_micro = {}".format(ave_auc_micro))
-        print("ave_auc_macro = {}".format(ave_auc_macro))
-        print("ave_auc_weighted = {}".format(ave_auc_weighted))
-
-    return{"auc_scores": auc_scores,
-            "ave_auc_micro": ave_auc_micro,
-            "ave_auc_macro": ave_auc_macro,
-            "ave_auc_weighted": ave_auc_weighted}
 
 
 def diff_float(time1, time2):
