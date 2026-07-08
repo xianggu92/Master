@@ -24,7 +24,7 @@ def eval_test(args, model, test_data_loader, device):
     result_dict[seed] = {}
     for subdir, dirs, files in os.walk(rootdir):
         substr = subdir.split('/')[-1]
-        if 'f1' not in substr:
+        if 'auprc' not in substr:
             continue
 
         file = str(seed) + '.pth.tar'
@@ -92,8 +92,6 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
 
         print("Epoch: " + str(epoch+1))
         for k, v in eval_vals.items():
-            if k == 'auc_scores':
-              continue
             if args.wandb:
                 wandb.log({
                     'Epoch': epoch,
@@ -135,7 +133,7 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
 
-        check_point(eval_vals, model, eval_logits, args, "macro_f1")
+        check_point(eval_vals, model, eval_logits, args, "auprc")
 
     elif 'ihm' in args.task or 'los' in args.task:
         eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits))
@@ -144,6 +142,6 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred)
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred)
 
-        check_point(eval_vals, model, eval_logits, args, "f1")
+        check_point(eval_vals, model, eval_logits, args, "auprc")
 
     return eval_vals
