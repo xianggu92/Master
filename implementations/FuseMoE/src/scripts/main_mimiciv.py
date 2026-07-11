@@ -1,17 +1,15 @@
 import os
 import torch
-
 import time
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
-
 from core.model import MULTCrossModel
 from core.train import eval_test, trainer_irg
 from utils.checkpoint import make_save_dir
 from utils.util import parse_args, set_seed
 from accelerate import Accelerator
-from preprocessing.data_mimiciv import data_perpare
+from preprocessing.data_mimiciv import data_prepare
 import wandb
 
 
@@ -35,11 +33,11 @@ def main():
     make_save_dir(args)
     
     if args.mode=='train':
-        train_dataset, train_sampler, train_dataloader = data_perpare(args, 'train')
-        val_dataset, val_sampler, val_dataloader = data_perpare(args, 'val')
-        _, _, test_data_loader = data_perpare(args, 'test')
+        train_dataset, train_sampler, train_dataloader = data_prepare(args, 'train')
+        val_dataset, val_sampler, val_dataloader = data_prepare(args, 'val')
+        _, _, test_data_loader = data_prepare(args, 'test')
     elif args.mode=='test':
-         _, _, test_data_loader = data_perpare(args, 'test')
+         _, _, test_data_loader = data_prepare(args, 'test')
 
     model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.ts_learning_rate)

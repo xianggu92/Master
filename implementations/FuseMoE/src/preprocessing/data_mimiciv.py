@@ -1,307 +1,224 @@
-from utils.util import *
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Dataset
 import os
 import pickle
 import torch
 from torch.nn.utils.rnn import pad_sequence
-import pdb
+from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
+import numpy as np
 
 
-def data_perpare(args, mode, data=None):
-    """
-    Prepare the data for training or evaluation.
+def data_prepare(args, mode, data=None):
+    """Prepare the data for training or evaluation."""
+    dataset = TSNoteIrgDataset(args, mode, data)
 
-    Args:
-        args (object): The arguments object.
-        mode (str): The mode, either 'train' or 'eval'.
-        tokenizer (object): The tokenizer object.
-        data (list, optional): The data to be used. Defaults to None.
-
-    Returns:
-        dataset (object): The dataset object.
-        sampler (object): The sampler object.
-        dataloader (object): The dataloader object.
-    """
-    dataset = TSNote_Irg(args, mode, data)
-
-    if mode=='train':
+    if mode == "train":
         sampler = RandomSampler(dataset)
-        dataloader= DataLoader(dataset, sampler=sampler, batch_size=args.train_batch_size, collate_fn=TextTSIrgcollate_fn)
+        dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.train_batch_size, collate_fn=text_ts_irg_collate_fn)
     else:
         sampler = SequentialSampler(dataset)
-        dataloader= DataLoader(dataset, sampler=sampler, batch_size=args.eval_batch_size, collate_fn=TextTSIrgcollate_fn)
+        dataloader = DataLoader(dataset, sampler=sampler, batch_size=args.eval_batch_size, collate_fn=text_ts_irg_collate_fn)
 
     return dataset, sampler, dataloader
 
 
-def F_impute(X, tt, mask, duration, tt_max):
-    """
-    Imputes missing values in the input data based on the discretization rule mentioned in the paper.
+def impute_missing_values(features, timestamps, feature_mask, duration, max_time):
+    """Imputes missing values in the input data based on the discretization rule mentioned in the paper."""
+    num_features = features.shape[1]
+    imputed_data = np.zeros(shape=(max_time // duration, num_features * 2))
 
-    Parameters:
-    X (numpy.ndarray): Input data matrix of shape (n_samples, n_features).
-    tt (numpy.ndarray): Array of time values corresponding to each sample.
-    mask (numpy.ndarray): Array indicating missing values in the input data.
-    duration (int): Duration of each time interval for discretization.
-    tt_max (int): Maximum time value.
-
-    Returns:
-    numpy.ndarray: Imputed data matrix of shape (tt_max//duration, n_features*2).
-    """
-    
-    no_feature = X.shape[1]
-    impute = np.zeros(shape=(tt_max//duration,no_feature*2))
-    for x, t, m in zip(X, tt, mask):
-        row=int(t/duration)
-        if row>=tt_max:
+    for feat_row, time_val, mask_row in zip(features, timestamps, feature_mask):
+        target_row_idx = int(time_val / duration)
+        if target_row_idx >= max_time:
             continue
-        for f_idx, (row_x, row_m) in enumerate(zip(x, m)):
-            # perform imputation according to the discretization rule in paper
-            if row_m == 1:
-                impute[row][no_feature+f_idx] = 1
-                impute[row][f_idx] = row_x
+
+        for feat_idx, (feat_val, is_present) in enumerate(zip(feat_row, mask_row)):
+            if is_present == 1:
+                imputed_data[target_row_idx][num_features + feat_idx] = 1
+                imputed_data[target_row_idx][feat_idx] = feat_val
             else:
-                if impute[row-1][f_idx] != 0:
-                    impute[row][f_idx] = impute[row-1][f_idx]
+                if imputed_data[target_row_idx - 1][feat_idx] != 0:
+                    imputed_data[target_row_idx][feat_idx] = imputed_data[target_row_idx - 1][feat_idx]
 
-    return impute
+    return imputed_data
 
 
-class TSNote_Irg(Dataset):
-    """
-    A PyTorch dataset class for handling time series note data in the MIMIC-IV dataset.
+class TSNoteIrgDataset(Dataset):
+    """A PyTorch dataset class for handling time series note data in the MIMIC-IV dataset."""
 
-    Args:
-        args (argparse.Namespace): The command-line arguments.
-        mode (str): The mode of the dataset (e.g., "train", "val", "test").
-        tokenizer (transformers.PreTrainedTokenizer): The tokenizer for encoding the text data.
-        data (list, optional): The list of data samples. If not provided, the data will be loaded from a file.
-
-    Attributes:
-        tokenizer (transformers.PreTrainedTokenizer): The tokenizer for encoding the text data.
-        max_len (int): The maximum length of the input sequences.
-        data (list): The list of data samples.
-        chunk (bool): Whether to chunk the data.
-        text_id_attn_data (list): The list of text data samples for attention calculation.
-        padding (str): The padding strategy for the input sequences.
-        notes_order (str): The order of the notes.
-        order_sample (numpy.ndarray): The array of randomly sampled note orders.
-        modeltype (str): The type of the model.
-        model_name (str): The name of the model.
-        num_of_notes (int): The number of notes to consider.
-        tt_max (float): The maximum value of the time-to-end feature.
-
-    Methods:
-        __getitem__(self, idx): Retrieves the data at the given index.
-        __len__(self): Returns the length of the dataset.
-    """
-    
     def __init__(self, args, mode, data=None):
-        if data != None:
+        if data is not None:
             self.data = data
         else:
             self.data = load_data(file_path=args.file_path, mode=mode, task=args.task)
         self.args = args
-        self.modeltype = args.modeltype
+        self.model_type = args.modeltype
         self.mode = mode
-        self.tt_max = args.tt_max
+        self.max_time = args.tt_max
         self.reg_ts = args.reg_ts
         if args.debug:
             self.data = self.data[:100]
-        
+
     def __getitem__(self, idx):
-        """
-        Retrieves the data at the given index.
-
-        Args:
-            idx (int): The index of the data to retrieve.
-
-        Returns:
-            dict: A dictionary containing the data at the given index.
-        """
-        x = {}
+        sample_dict = {}
         data_detail = self.data[idx]
 
-        label = data_detail["label"]
-        label = torch.tensor(label, dtype=torch.long)
-        x['label'] = label
+        label = torch.tensor(data_detail["label"], dtype=torch.long)
+        sample_dict["label"] = label
 
-        if 'TS' in self.modeltype:
-            ts = data_detail['irg_ts']
-            ts_tt = data_detail["ts_tt"].astype(np.float32)
-            ts_mask = data_detail['irg_ts_mask']
+        if "TS" in self.model_type:
+            ts_features = data_detail["irg_ts"]
+            ts_timestamps = data_detail["ts_tt"].astype(np.float32)
+            ts_mask = data_detail["irg_ts_mask"]
 
-            # 前處理 ipynb 檔沒有插值到最大的時間點，因此要重新處理一次插值後的 time series
             if self.reg_ts:
-                reg_ts = F_impute(ts, ts_tt, ts_mask, 1, self.tt_max)
-                reg_ts = torch.tensor(reg_ts, dtype=torch.float)
+                regularized_ts = impute_missing_values(ts_features, ts_timestamps, ts_mask, 1, self.max_time)
+                regularized_ts = torch.tensor(regularized_ts, dtype=torch.float)
             else:
-                reg_ts = None
+                regularized_ts = None
 
-            # 在 F.impute 之後才能轉換成 tensor，不然處理速度會很慢
-            ts = torch.tensor(ts, dtype=torch.float)
+            ts_features = torch.tensor(ts_features, dtype=torch.float)
             ts_mask = torch.tensor(ts_mask, dtype=torch.long)
-            ts_tt = torch.tensor(ts_tt/self.tt_max, dtype=torch.float)
+            ts_timestamps = torch.tensor(ts_timestamps / self.max_time, dtype=torch.float)
 
-            x['ts'] = ts
-            x['ts_tt'] = ts_tt
-            x['ts_mask'] = ts_mask
-            x['reg_ts'] = reg_ts
+            sample_dict["ts_feat"] = ts_features
+            sample_dict["ts_time"] = ts_timestamps
+            sample_dict["ts_mask"] = ts_mask
+            sample_dict["reg_ts_feat"] = regularized_ts
 
-        if 'Text' in self.modeltype:
-            if not data_detail['text_missing']:
-                text_emb = data_detail['text_embeddings']
-                text_emb = torch.tensor(np.array(text_emb), dtype=torch.float)
+        if "Text" in self.model_type:
+            if not data_detail["text_missing"]:
+                text_embeddings = data_detail["text_embeddings"]
+                text_embeddings = torch.tensor(np.array(text_embeddings), dtype=torch.float)
 
                 text_time_to_end = data_detail["text_time_to_end"].astype(np.float32)
-                text_time_to_end = torch.tensor(text_time_to_end/self.tt_max, dtype=torch.float)
+                text_time_to_end = torch.tensor(text_time_to_end / self.max_time, dtype=torch.float)
 
-                text_time_mask = [1] * len(text_time_to_end)
-                text_time_mask = torch.tensor(text_time_mask, dtype=torch.long)
+                text_time_mask = torch.tensor([1] * len(text_time_to_end), dtype=torch.long)
             else:
-                text_emb = torch.zeros((1, 768))
+                text_embeddings = torch.zeros((1, 768))
                 text_time_to_end = torch.zeros(1)
                 text_time_mask = torch.ones(1)
 
-            x['note_feats'] = text_emb
-            x['note_time'] = text_time_to_end
-            x['note_time_mask'] = text_time_mask
-            x['text_missing'] = data_detail['text_missing']
-            x['text_data'] = data_detail['text_data']
+            sample_dict["text_feat"] = text_embeddings
+            sample_dict["text_time"] = text_time_to_end
+            sample_dict["text_mask"] = text_time_mask
+            sample_dict["text_missing"] = data_detail["text_missing"]
+            sample_dict["text_raw_data"] = data_detail["text_data"]
 
-        if 'CXR' in self.modeltype:
-            if not data_detail['cxr_missing']:
-                cxr_feats = data_detail['cxr_feats']
+        if "CXR" in self.model_type:
+            if not data_detail["cxr_missing"]:
+                cxr_feats = data_detail["cxr_feats"]
                 cxr_feats = torch.tensor(np.array(cxr_feats), dtype=torch.float)
 
-                cxr_time_to_end = data_detail['cxr_time'].astype(np.float32)
-                cxr_time_to_end = torch.tensor(cxr_time_to_end/self.tt_max, dtype=torch.float)
+                cxr_time_to_end = data_detail["cxr_time"].astype(np.float32)
+                cxr_time_to_end = torch.tensor(cxr_time_to_end / self.max_time, dtype=torch.float)
 
-                cxr_time_mask = [1] * len(cxr_time_to_end)
-                cxr_time_mask = torch.tensor(cxr_time_mask, dtype=torch.long)
+                cxr_time_mask = torch.tensor([1] * len(cxr_time_to_end), dtype=torch.long)
             else:
                 cxr_feats = torch.zeros((1, 1024))
                 cxr_time_to_end = torch.zeros(1)
                 cxr_time_mask = torch.ones(1)
 
-            x['cxr_feats'] = cxr_feats
-            x['cxr_time'] = cxr_time_to_end
-            x['cxr_time_mask'] = cxr_time_mask
-            x['cxr_missing'] = data_detail['cxr_missing']
+            sample_dict["cxr_feat"] = cxr_feats
+            sample_dict["cxr_time"] = cxr_time_to_end
+            sample_dict["cxr_mask"] = cxr_time_mask
+            sample_dict["cxr_missing"] = data_detail["cxr_missing"]
 
-        if 'ECG' in self.modeltype:
-            if not data_detail['ecg_missing']:
-                ecg_feats = data_detail['ecg_feats']
+        if "ECG" in self.model_type:
+            if not data_detail["ecg_missing"]:
+                ecg_feats = data_detail["ecg_feats"]
                 ecg_feats = torch.tensor(np.array(ecg_feats), dtype=torch.float)
 
-                ecg_time_to_end = data_detail['ecg_time'].astype(np.float32)
-                ecg_time_to_end = torch.tensor(ecg_time_to_end/self.tt_max, dtype=torch.float)
+                ecg_time_to_end = data_detail["ecg_time"].astype(np.float32)
+                ecg_time_to_end = torch.tensor(ecg_time_to_end / self.max_time, dtype=torch.float)
 
-                ecg_time_mask = [1] * len(ecg_time_to_end)
-                ecg_time_mask = torch.tensor(ecg_time_mask, dtype=torch.long)
+                ecg_time_mask = torch.tensor([1] * len(ecg_time_to_end), dtype=torch.long)
             else:
                 ecg_feats = torch.zeros((1, 256))
                 ecg_time_to_end = torch.zeros(1)
                 ecg_time_mask = torch.ones(1)
 
-            x['ecg_feats'] = ecg_feats
-            x['ecg_time'] = ecg_time_to_end
-            x['ecg_time_mask'] = ecg_time_mask
-            x['ecg_missing'] = data_detail['ecg_missing']
+            sample_dict["ecg_feat"] = ecg_feats
+            sample_dict["ecg_time"] = ecg_time_to_end
+            sample_dict["ecg_mask"] = ecg_time_mask
+            sample_dict["ecg_missing"] = data_detail["ecg_missing"]
 
-        return x    
+        return sample_dict
 
     def __len__(self):
         return len(self.data)
 
-def load_data(file_path, mode, text=False, task='ihm'):
-    """
-    Load data from a file.
 
-    Args:
-        file_path (str): The path to the file.
-        mode (str): The mode of the data.
-        debug (bool, optional): Whether to enable debug mode. Defaults to False.
-        text (bool, optional): Whether the data is text. Defaults to False.
-        task (str, optional): The task of the data. Defaults to 'ihm'.
-
-    Returns:
-        data: The loaded data.
-    """
-    dataPath = os.path.join(file_path, mode + '_' + task + '_stays.pkl')
-    if os.path.isfile(dataPath):
-        print('Using', dataPath)
-        with open(dataPath, 'rb') as f:
+def load_data(file_path, mode, text=False, task="ihm"):
+    """Load data from a file."""
+    data_path = os.path.join(file_path, f"{mode}_{task}_stays.pkl")
+    data = None
+    if os.path.isfile(data_path):
+        print("Using", data_path)
+        with open(data_path, "rb") as f:
             data = pickle.load(f)
-
     return data
 
-def TextTSIrgcollate_fn(batch):
-    x = {}
 
-    if 'text_missing' in batch[0].keys():
-        text_missing = torch.stack([torch.tensor(example["text_missing"]) for example in batch])
-        x['text_missing'] = text_missing
+def text_ts_irg_collate_fn(batch):
+    batch_output = {}
 
-    if 'cxr_missing' in batch[0].keys():
-        cxr_missing = torch.stack([torch.tensor(example["cxr_missing"]) for example in batch])
-        x['cxr_missing'] = cxr_missing
+    if "text_missing" in batch[0].keys():
+        batch_output["text_missing"] = torch.stack([torch.tensor(example["text_missing"]) for example in batch])
 
-    if 'ecg_missing' in batch[0].keys():
-        ecg_missing = torch.stack([torch.tensor(example["ecg_missing"]) for example in batch])
-        x['ecg_missing'] = ecg_missing
+    if "cxr_missing" in batch[0].keys():
+        batch_output["cxr_missing"] = torch.stack([torch.tensor(example["cxr_missing"]) for example in batch])
+
+    if "ecg_missing" in batch[0].keys():
+        batch_output["ecg_missing"] = torch.stack([torch.tensor(example["ecg_missing"]) for example in batch])
 
     try:
-        ts_input_sequences = pad_sequence([example['ts'] for example in batch], batch_first=True, padding_value=0)
-        ts_mask_sequences = pad_sequence([example['ts_mask'] for example in batch], batch_first=True, padding_value=0)
-        ts_tt = pad_sequence([example['ts_tt'] for example in batch], batch_first=True, padding_value=0 )
+        ts_input_sequences = pad_sequence([example["ts_feat"] for example in batch], batch_first=True, padding_value=0)
+        ts_mask_sequences = pad_sequence([example["ts_mask"] for example in batch], batch_first=True, padding_value=0)
+        ts_timestamps = pad_sequence([example["ts_time"] for example in batch], batch_first=True, padding_value=0)
         labels = torch.stack([example["label"] for example in batch])
-        
-        if batch[0]['reg_ts'] is not None:
-            reg_ts_input=torch.stack([example['reg_ts'] for example in batch])
-        else:
-            reg_ts_input=None
 
-        x['x_ts'] = ts_input_sequences
-        x['x_ts_mask'] = ts_mask_sequences
-        x['ts_tt_list'] = ts_tt
-        x['reg_ts'] = reg_ts_input
-        x['labels'] = labels
-    except:
-        # if there is no vital signs, just return
-        print('Sample with no vital signs detected')
+        if batch[0]["reg_ts_feat"] is not None:
+            reg_ts_input = torch.stack([example["reg_ts_feat"] for example in batch])
+        else:
+            reg_ts_input = None
+
+        batch_output["ts_feats"] = ts_input_sequences
+        batch_output["ts_masks"] = ts_mask_sequences
+        batch_output["ts_times"] = ts_timestamps
+        batch_output["reg_ts_feats"] = reg_ts_input
+        batch_output["labels"] = labels
+    except Exception:
+        print("Sample with no vital signs detected")
         return
 
-    if 'note_feats' in batch[0].keys():
-        text_emb = [pad_sequence(example['note_feats'], batch_first=True, padding_value=0) for example in batch]
-        text_emb = pad_sequence(text_emb, batch_first=True, padding_value=0)
-        note_time = pad_sequence([example['note_time'] for example in batch], batch_first=True, padding_value=0)
-        note_time_mask = pad_sequence([example['note_time_mask'] for example in batch], batch_first=True, padding_value=0)
-        text_data = [example['text_data'] for example in batch]
+    if "text_feat" in batch[0].keys():
+        text_embs = [pad_sequence(example["text_feat"], batch_first=True, padding_value=0) for example in batch]
+        text_embs = pad_sequence(text_embs, batch_first=True, padding_value=0)
+        note_times = pad_sequence([example["text_time"] for example in batch], batch_first=True, padding_value=0)
+        note_time_masks = pad_sequence([example["text_mask"] for example in batch], batch_first=True, padding_value=0)
 
-        x['text_emb'] = text_emb
-        x['note_time_list'] = note_time
-        x['note_time_mask_list'] = note_time_mask
-        x['text_data'] = text_data
+        batch_output["text_feats"] = text_embs
+        batch_output["text_times"] = note_times
+        batch_output["text_masks"] = note_time_masks
 
-    if 'cxr_feats' in batch[0].keys():
-        cxr_feats = [pad_sequence(example['cxr_feats'], batch_first=True, padding_value=0) for example in batch]
+    if "cxr_feat" in batch[0].keys():
+        cxr_feats = [pad_sequence(example["cxr_feat"], batch_first=True, padding_value=0) for example in batch]
         cxr_feats = pad_sequence(cxr_feats, batch_first=True, padding_value=0)
-        cxr_time = pad_sequence([example['cxr_time'] for example in batch], batch_first=True, padding_value=0)
-        cxr_time_mask = pad_sequence([example['cxr_time_mask'] for example in batch], batch_first=True, padding_value=0)
+        cxr_times = pad_sequence([example["cxr_time"] for example in batch], batch_first=True, padding_value=0)
+        cxr_time_masks = pad_sequence([example["cxr_mask"] for example in batch], batch_first=True, padding_value=0)
 
-        x['cxr_feats'] = cxr_feats
-        x['cxr_time'] = cxr_time
-        x['cxr_time_mask'] = cxr_time_mask
+        batch_output["cxr_feats"] = cxr_feats
+        batch_output["cxr_times"] = cxr_times
+        batch_output["cxr_masks"] = cxr_time_masks
 
-    if 'ecg_feats' in batch[0].keys():
-        ecg_feats = [pad_sequence(example['ecg_feats'], batch_first=True, padding_value=0) for example in batch]
+    if "ecg_feat" in batch[0].keys():
+        ecg_feats = [pad_sequence(example["ecg_feat"], batch_first=True, padding_value=0) for example in batch]
         ecg_feats = pad_sequence(ecg_feats, batch_first=True, padding_value=0)
-        ecg_time = pad_sequence([example['ecg_time'] for example in batch], batch_first=True, padding_value=0)
-        ecg_time_mask = pad_sequence([example['ecg_time_mask'] for example in batch], batch_first=True, padding_value=0)
+        ecg_times = pad_sequence([example["ecg_time"] for example in batch], batch_first=True, padding_value=0)
+        ecg_time_masks = pad_sequence([example["ecg_mask"] for example in batch], batch_first=True, padding_value=0)
 
-        x['ecg_feats'] = ecg_feats
-        x['ecg_time'] = ecg_time
-        x['ecg_time_mask'] = ecg_time_mask
+        batch_output["ecg_feats"] = ecg_feats
+        batch_output["ecg_times"] = ecg_times
+        batch_output["ecg_masks"] = ecg_time_masks
 
-    return x
+    return batch_output
