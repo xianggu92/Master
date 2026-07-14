@@ -25,3 +25,7 @@ load_result.py
 
 # 排除 FuseMoE 原始程式碼
 FuseMoE-main/
+
+# Flex-MoE
+logs/
+saves/
