@@ -76,7 +76,7 @@ def check_point(all_val, model, all_logits, args, eval_score=None):
         'best_val': all_val,
         'args': args}, is_best, filename)
     else:
-        checkpoint = torch.load(filename)
+        checkpoint = torch.load(filename, weights_only=False)
         # import pdb; pdb.set_trace()
         val = checkpoint['best_val'][eval_score]
         best_val= all_val[eval_score]
