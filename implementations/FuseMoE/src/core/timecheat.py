@@ -28,7 +28,7 @@ class MAB2(nn.Module):
         K = torch.cat(K.split(dim_split, 2), 0)
         V = torch.cat(V.split(dim_split, 2), 0)
 
-        Att_mat = Q_.bmm(K.transpose(1,2))/math.sqrt(self.n_dim)
+        Att_mat = Q_.bmm(K.transpose(1,2))/math.sqrt(dim_split)
         if mask is not None:
             Att_mat = Att_mat.masked_fill(mask.repeat(self.num_heads,1,1) == 0, -10e9)
         A = torch.softmax(Att_mat, 2)
@@ -142,21 +142,14 @@ class TimeCHEATEncoder(nn.Module):
             C_ = self.channel_attn[i](C__, C__)
             T_ = T__
 
-        k_t = self.gather(T_, T_inds_) # (batch, flattened_max_length, n_kernel)
-        k_c = self.gather(C_, C_inds_)
-        output = self.output(torch.cat([U_, k_t, k_c], -1)) # (batch, flattened_max_length, n_kernel)
+        # 取出參考點對應的節點特徵
+        ref_mask = target_mask[..., 0].bool() # (batch, max_length)
+        ref_feat = T_[ref_mask] # (batch * n_ref_points, n_kernel)
+        batch = T_.shape[0]
+        n_patch_ref_points = self.ref_points.shape[-1]
+        ref_feat = ref_feat.view(batch, n_patch_ref_points, self.nkernel)
 
-        batch_size = output.size(0)
-        n_ref_pts_in_patch = self.ref_points.size(1)
-        
-        # 篩選出所有 Batch 中屬於參考點的特徵
-        ref_features = output[target_mask_ == 1]  # (B * n_ref_pts_in_patch * ndims, n_kernel)
-        
-        # 對通道維度進行平均
-        ref_features = ref_features.reshape(batch_size, n_ref_pts_in_patch, ndims, self.nkernel) # (batch, n_ref_pts_in_patch, ndims, n_kernel)
-        output_mean = ref_features.mean(dim=2) # (batch, n_ref_pts_in_patch, n_kernel)
-
-        return output_mean, target_mask_, source_, source_mask_
+        return ref_feat, target_mask_, source_, source_mask_
 
     def forward(self, vals, mask, time):
         repr_patch = []
