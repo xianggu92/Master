@@ -30,7 +30,7 @@ def eval_test(args, model, test_data_loader, device):
         file = str(seed) + '.pth.tar'
         file_path = os.path.join(subdir, file)
         print(file_path)
-        checkpoint = torch.load(file_path)
+        checkpoint = torch.load(file_path, weights_only=False)
         model.load_state_dict(checkpoint['network'])
         test_val = evaluate_irg(args=args, device=device, data_loader=test_data_loader, model=model)
         print(test_val)
