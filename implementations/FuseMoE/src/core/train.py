@@ -48,6 +48,10 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
     global_step = 0
     for epoch in range(args.num_train_epochs):
         model.train()
+        epoch_total_loss = 0.0
+        epoch_loss = 0.0
+        epoch_balance_loss = 0.0
+        total_samples = 0
 
         for step, batch in enumerate(tqdm(train_dataloader, ncols=45)):
             global_step += 1
@@ -70,40 +74,47 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
             else:
                 total_loss = loss
 
+            # 累積 epoch loss
+            batch_size = batch["labels"].size(0)
+            epoch_total_loss += total_loss.item() * batch_size
+            epoch_loss += loss.item() * batch_size
+            if balance_loss is not None:
+                epoch_balance_loss += balance_loss.item() * batch_size
+            total_samples += batch_size
+
             total_loss = total_loss / args.gradient_accumulation_steps
             accelerator.backward(total_loss)
 
-            if (step+1) % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+            if (step + 1) % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 if args.gradient_clipping:
                     accelerator.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 model.zero_grad()
 
-            if args.wandb:
-                wandb.log({
-                    'Epoch': epoch,
-                    'Global Step': global_step,
-                    'Train Loss': loss,
-                    'Balance Loss': balance_loss,
-                    'Total Loss': total_loss,
-                })
+        if args.wandb:
+            wandb.log({
+                'Epoch': epoch + 1,
+                'Global Step': global_step,
+                'Task Loss': epoch_loss / total_samples,
+                'Balance Loss': epoch_balance_loss / total_samples,
+                'Total Loss': epoch_total_loss / total_samples,
+            })
 
         eval_vals = evaluate_irg(args, device, dev_dataloader, model)
 
-        print("Epoch: " + str(epoch+1))
+        if eval_vals["auprc"] > best_evals.get("auprc", 0):
+            best_evals = eval_vals.copy()
+
+        # Print current and best metrics
         for k, v in eval_vals.items():
-            if args.wandb:
+            if args.wandb: 
                 wandb.log({
-                    'Epoch': epoch,
+                    'Epoch': epoch + 1,
                     'Global Step': global_step,
-                    f'Val {k}': v,
-                })
-            best_eval = best_evals.get(k, 0)
-            if v > best_eval:
-                best_eval = v
-                best_evals[k] = best_eval
-            print("Current " + k + ' ' + str(v))
-            print("Best " + k + ' ' + str(best_eval))
+                    f'Val {k}': v, }
+                    )
+            print(f"Current {k} {v}")
+            print(f"Best {k} {best_evals[k]}")
 
 
 def evaluate_irg(args, device, data_loader, model):
