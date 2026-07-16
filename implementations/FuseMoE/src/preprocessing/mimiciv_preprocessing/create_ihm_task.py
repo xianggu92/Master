@@ -9,9 +9,8 @@ pd.set_option('display.max_columns', None)
 
 
 mimic_iv_path = "/mnt/nfs_share/Public_Data/Dataset_MIMICs/physionet.org/files/mimic-iv/2.2/"
-mm_dir = "/mnt/data/yihua/master/datasets/mimic-iv"
-
-output_dir = os.path.join(mm_dir, "preprocessing")
+preprocessing_dir = "/mnt/data/yihua/master/datasets/mimic-iv/preprocessing"
+output_dir = "/mnt/nfs_share/Public_Data/Dataset_MIMICs/preprcocessed"
 
 
 restrict_48_hours = True
@@ -19,11 +18,11 @@ include_notes = True
 include_cxr = True
 include_ecg = True
 standard_scale = True
-include_missing = False
+include_missing = True
 
 
-ireg_vitals_ts_df = pd.read_pickle(os.path.join(output_dir, "ts_labs_vitals_icu.pkl"))
-imputed_vitals = pd.read_pickle(os.path.join(output_dir, "imputed_ts_labs_vitals_icu.pkl"))
+ireg_vitals_ts_df = pd.read_pickle(os.path.join(preprocessing_dir, "ts_labs_vitals_icu.pkl"))
+imputed_vitals = pd.read_pickle(os.path.join(preprocessing_dir, "imputed_ts_labs_vitals_icu.pkl"))
 
 ireg_vitals_ts_df = ireg_vitals_ts_df[ireg_vitals_ts_df['timedelta'] >= 0]
 imputed_vitals = imputed_vitals[imputed_vitals['timedelta'] >= 0]
@@ -34,7 +33,7 @@ if restrict_48_hours:
 
 
 if include_notes:
-    notes_df = pd.read_pickle(os.path.join(output_dir, "icu_notes_text_embeddings.pkl"))
+    notes_df = pd.read_pickle(os.path.join(preprocessing_dir, "icu_notes_text_embeddings.pkl"))
     notes_df = notes_df[notes_df['stay_id'].notnull()]
 
     notes_df = notes_df[notes_df['icu_time_delta'] >= 0]
@@ -42,13 +41,13 @@ if include_notes:
         notes_df = notes_df[notes_df['icu_time_delta'] <= 48]
 
 if include_cxr:
-    cxr_df = pd.read_pickle(os.path.join(output_dir, "cxr_embeddings_icu.pkl"))
+    cxr_df = pd.read_pickle(os.path.join(preprocessing_dir, "cxr_embeddings_icu.pkl"))
     cxr_df = cxr_df[cxr_df['icu_time_delta'] >= 0]
     if restrict_48_hours:
         cxr_df = cxr_df[cxr_df['icu_time_delta'] <= 48]
 
 if include_ecg:
-    ecg_df = pd.read_pickle(os.path.join(output_dir, "ecg_embeddings_icu.pkl"))
+    ecg_df = pd.read_pickle(os.path.join(preprocessing_dir, "ecg_embeddings_icu.pkl"))
     ecg_df = ecg_df[ecg_df['icu_time_delta'] >= 0]
     if restrict_48_hours:
         ecg_df = ecg_df[ecg_df['icu_time_delta'] <= 48]
