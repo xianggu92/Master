@@ -61,6 +61,7 @@ class TimeCHEATEncoder(nn.Module):
             self.edge_nn.append(nn.Linear(3 * nkernel, nkernel))
             self.channel_attn.append(MAB2(nkernel, nkernel, nkernel, nkernel, self.nheads))
         self.relu = nn.ReLU()
+        self.edge_score = nn.Linear(nkernel, 1)
 
         self.n_patches = n_patches
         self.register_buffer('patch_range', torch.linspace(0, 1, self.n_patches + 1))
@@ -142,14 +143,27 @@ class TimeCHEATEncoder(nn.Module):
             C_ = self.channel_attn[i](C__, C__)
             T_ = T__
 
-        # 取出參考點對應的節點特徵
-        ref_mask = target_mask[..., 0].bool() # (batch, max_length)
-        ref_feat = T_[ref_mask] # (batch * n_ref_points, n_kernel)
-        batch = T_.shape[0]
-        n_patch_ref_points = self.ref_points.shape[-1]
-        ref_feat = ref_feat.view(batch, n_patch_ref_points, self.nkernel)
+        # 方法 1: 取出參考點對應的節點特徵
+        # ref_mask = target_mask[..., 0].bool() # (batch, max_length)
+        # ref_feat = T_[ref_mask] # (batch * n_ref_points, n_kernel)
+        # batch = T_.shape[0]
+        # n_patch_ref_points = self.ref_points.shape[-1]
+        # output = ref_feat.view(batch, n_patch_ref_points, self.nkernel)
 
-        return ref_feat, target_mask_, source_, source_mask_
+        # 方法 2: 注意力機制融合參考點的邊特徵
+        k_t = self.gather(T_, T_inds_)
+        k_c = self.gather(C_, C_inds_)
+        edge_feat = self.output(torch.cat([U_, k_t, k_c], -1)) # (batch_size, full_len, nkernel)
+
+        batch_size, obs_len, nkernel = edge_feat.shape
+        n_ref_points = self.ref_points.shape[-1]
+
+        edge_feat = edge_feat[target_mask_.bool()].view(batch_size, n_ref_points, self.dim, nkernel) # (batch_size, n_ref_points, dim, nkernel)
+        score = self.edge_score(edge_feat).squeeze(-1) # (batch_size, n_ref_points, dim)
+        attn = torch.softmax(score, dim=-1)
+        output = (attn.unsqueeze(-1) * edge_feat).sum(dim=2) # (batch_size, n_ref_points, nkernel)
+        
+        return output, target_mask_, source_, source_mask_
 
     def forward(self, vals, mask, time):
         repr_patch = []
