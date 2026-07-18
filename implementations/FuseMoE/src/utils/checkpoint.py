@@ -30,12 +30,15 @@ def make_save_dir(args):
         output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
 
     if 'PatchInterpolation' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_' + str(args.n_patch) + '_' + str(args.n_ref_point)
+        output_dir += '_' + str(args.n_patches) + '_' + str(args.n_ref_points)
 
         if args.use_global:
             output_dir += '_global'
 
-    if args.num_modalities > 1:
+    if 'TimeCHEAT' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
+        output_dir += '_' + str(args.n_patches) + '_' + str(args.n_ref_points) + '_' + str(args.n_enc_layers)
+
+    if args.num_modalities >= 1:
         output_dir += '_layer' + str(args.layers)
         output_dir+= "_" + args.cross_method
 
