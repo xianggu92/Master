@@ -17,7 +17,7 @@ include_notes = True
 include_cxr = True
 include_ecg = True
 standard_scale = True
-include_missing = True
+include_missing = False
 
 
 # ireg_vitals_ts_df = pd.read_pickle(os.path.join(preprocessing_dir, "ts_vitals_icu.pkl"))
@@ -126,20 +126,6 @@ cols = [col for col in cols if col not in ['subject_id', 'hadm_id', 'stay_id', '
 
 if standard_scale:
     for col in cols:
-        # 計算第 25 百分位數 (Q1) 與 第 75 百分位數 (Q3)
-        q1 = train_ireg_ts_df[col].quantile(0.25)
-        q3 = train_ireg_ts_df[col].quantile(0.75)
-
-        # 計算 IQR
-        iqr = q3 - q1
-
-        # 定義合理範圍的上下界
-        lower_bound = q1 - (1.5 * iqr)
-        upper_bound = q3 + (1.5 * iqr)
-
-        # 使用 pandas 的 clip 函數進行裁剪
-        ireg_vitals_ts_df[col] = ireg_vitals_ts_df[col].clip(lower=lower_bound, upper=upper_bound)
-
         scaler = StandardScaler()
         scaler.fit(train_ireg_ts_df[[col]])
         ireg_vitals_ts_df[col] = scaler.transform(ireg_vitals_ts_df[[col]])
@@ -148,27 +134,6 @@ if standard_scale:
         scaler.fit(train_imputed_df[[col]])
         imputed_vitals[col] = scaler.transform(imputed_vitals[[col]])
 
-
-
-if include_ecg:
-    train_ecg_df = ecg_df[ecg_df['stay_id'].isin(train_stays)].copy()
-
-    X_train = np.vstack(train_ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
-
-    X_train[np.isnan(X_train)] = 0
-    X_train[np.isinf(X_train)] = 0
-
-    scaler = StandardScaler()
-    scaler.fit(X_train)
-
-    X = np.vstack(ecg_df['embeddings'].apply(lambda x: np.squeeze(x)))
-
-    X[np.isnan(X)] = 0
-    X[np.isinf(X)] = 0
-
-    X_scaled = scaler.transform(X)
-
-    ecg_df['embeddings'] = [row for row in X_scaled]
 
 
 import yaml
