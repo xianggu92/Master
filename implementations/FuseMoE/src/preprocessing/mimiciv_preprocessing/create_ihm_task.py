@@ -31,6 +31,41 @@ if restrict_48_hours:
     ireg_vitals_ts_df = ireg_vitals_ts_df[ireg_vitals_ts_df['timedelta'] <= 48]
     imputed_vitals = imputed_vitals[imputed_vitals['timedelta'] <= 48]
 
+variable_ranges = pd.read_csv('/mnt/nfs_share/Public_Data/Dataset_MIMICs/physionet.org/files/mimic-iv/2.2/variable_ranges.csv')
+rename_dict = {
+    'Diastolic blood pressure': 'Diastolic BP',
+    'Glascow coma scale eye opening': 'GCS - Eye Opening',
+    'Glascow coma scale motor response': 'GCS - Motor Response',
+    'Glascow coma scale verbal response': 'GCS - Verbal Response',
+    'Heart rate': 'Heart Rate',
+    'Mean blood pressure': 'Mean BP',
+    'Oxygen saturation': 'O2 Saturation',
+    'Platelets': 'Platelet Count',
+    'Respiratory rate': 'Respiratory Rate',
+    'Systolic blood pressure': 'Systolic BP',
+    'Blood urea nitrogen': 'Urea Nitrogen',
+    'White blood cell count': 'White Blood Cells',
+}
+variable_ranges['LEVEL2'] = variable_ranges['LEVEL2'].replace(rename_dict)
+variable_ranges
+
+
+# Set outliers to NaN
+for index, row in variable_ranges.iterrows():
+    var_name = row['LEVEL2']
+    valid_low = row['VALID LOW']
+    valid_high = row['VALID HIGH']
+    
+    if var_name in ireg_vitals_ts_df.columns and ~np.isnan(valid_low) and ~np.isnan(valid_high):
+        ireg_vitals_ts_df[var_name] = ireg_vitals_ts_df[var_name].where(
+            ireg_vitals_ts_df[var_name].between(valid_low, valid_high), 
+            np.nan
+        )
+
+# Drop rows that contain NaN for all variable columns
+cols = ireg_vitals_ts_df.columns.tolist()
+cols = [col for col in cols if col not in ['subject_id', 'hadm_id', 'stay_id', 'timedelta']]
+ireg_vitals_ts_df = ireg_vitals_ts_df.dropna(subset=cols, how='all')
 
 if include_notes:
     notes_df = pd.read_pickle(os.path.join(preprocessing_dir, "icu_notes_text_embeddings.pkl"))
