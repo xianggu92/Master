@@ -30,13 +30,13 @@ def make_save_dir(args):
         output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
 
     if 'PatchInterpolation' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_' + str(args.n_patches) + '_' + str(args.n_ref_points)
+        output_dir += '_patch_' + str(args.n_patches) + '_ref_point_' + str(args.n_ref_points)
 
         if args.use_global:
             output_dir += '_global'
 
     if 'TimeCHEAT' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_' + str(args.n_patches) + '_' + str(args.n_ref_points) + '_' + str(args.n_enc_layers)
+        output_dir += '_patch_' + str(args.n_patches) + '_ref_point_' + str(args.n_ref_points) + '_enc_layer_' + str(args.n_enc_layers)
 
     if args.num_modalities >= 1:
         output_dir += '_layer' + str(args.layers)
@@ -45,7 +45,7 @@ def make_save_dir(args):
         if args.cross_method == 'moe':
             output_dir += f"_{args.gating_function}"
             output_dir += f"_{args.router_type}"
-            output_dir += f"_{args.num_of_experts}"
+            output_dir += f"_expert_{args.num_of_experts}"
             output_dir += f"_top_{args.top_k}"
             if args.router_type == 'disjoint':
                 output_dir += f"_disjoint_{args.disjoint_top_k}"
@@ -53,8 +53,8 @@ def make_save_dir(args):
     if args.TS_mixup:
         output_dir += "_" + args.mixup_level
 
-    output_dir += "_" + str(args.ts_learning_rate) + "_" + str(args.num_train_epochs) + "_" + str(args.num_heads) + "_" + str(args.embed_dim) +\
-        "_" + str(args.kernel_size) + "_" + str(args.train_batch_size) + "_" + str(args.hidden_size) + '/'
+    output_dir += "_lr_" + str(args.ts_learning_rate) + "_epoch_" + str(args.num_train_epochs) + "_head_" + str(args.num_heads) + "_embed_" + str(args.embed_dim) +\
+        "_kernel_" + str(args.kernel_size) + "_bs_" + str(args.train_batch_size) + "_mlp_hidden_" + str(args.hidden_size) + '/'
 
     args.ck_file_path = output_dir
     os.makedirs(output_dir,  exist_ok=True)
