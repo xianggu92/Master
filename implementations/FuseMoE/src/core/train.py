@@ -46,6 +46,8 @@ def eval_test(args, model, test_data_loader, device):
 def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test_data_loader, device, optimizer):
     best_evals = {}
     global_step = 0
+    early_stopping_counter = 0
+
     for epoch in range(args.num_train_epochs):
         model.train()
         epoch_total_loss = 0.0
@@ -102,8 +104,11 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
 
         eval_vals = evaluate_irg(args, device, dev_dataloader, model)
 
-        if eval_vals["auprc"] > best_evals.get("auprc", 0):
+        if eval_vals[args.monitor] > best_evals.get(args.monitor, 0):
             best_evals = eval_vals.copy()
+            early_stopping_counter = 0
+        else:
+            early_stopping_counter += 1
 
         # Print current and best metrics
         for k, v in eval_vals.items():
@@ -115,6 +120,10 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
                     )
             print(f"Current {k} {v}")
             print(f"Best {k} {best_evals[k]}")
+
+        if early_stopping_counter >= args.patience:
+            print('Early stopping')
+            break
 
 
 def evaluate_irg(args, device, data_loader, model):
@@ -144,7 +153,7 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
 
-        check_point(eval_vals, model, eval_logits, args, "auprc")
+        check_point(eval_vals, model, eval_logits, args, args.monitor)
 
     elif 'ihm' in args.task or 'los' in args.task:
         eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits))
@@ -153,6 +162,6 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred)
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred)
 
-        check_point(eval_vals, model, eval_logits, args, "auprc")
+        check_point(eval_vals, model, eval_logits, args, args.monitor)
 
     return eval_vals
