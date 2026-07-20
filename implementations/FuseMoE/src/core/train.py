@@ -24,7 +24,7 @@ def eval_test(args, model, test_data_loader, device):
     result_dict[seed] = {}
     for subdir, dirs, files in os.walk(rootdir):
         substr = subdir.split('/')[-1]
-        if 'auprc' not in substr:
+        if args.monitor not in substr:
             continue
 
         file = str(seed) + '.pth.tar'
