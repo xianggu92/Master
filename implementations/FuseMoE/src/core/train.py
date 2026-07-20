@@ -104,7 +104,7 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
 
         eval_vals = evaluate_irg(args, device, dev_dataloader, model)
 
-        if eval_vals[args.monitor] > best_evals.get(args.monitor, 0):
+        if eval_vals[args.monitor] > best_evals.get(args.monitor, float('-inf')):
             best_evals = eval_vals.copy()
             early_stopping_counter = 0
         else:
