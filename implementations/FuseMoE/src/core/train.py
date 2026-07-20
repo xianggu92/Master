@@ -111,6 +111,7 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
             early_stopping_counter += 1
 
         # Print current and best metrics
+        print(f'Epoch: {epoch+1}')
         for k, v in eval_vals.items():
             if args.wandb: 
                 wandb.log({
