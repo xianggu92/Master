@@ -212,8 +212,6 @@ class MULTCrossModel(nn.Module):
         cxr_missing=None,
         text_missing=None,
         ecg_missing=None,
-        input_ids_sequences=None,
-        attn_mask_sequences=None,
         text_feats=None,
         text_times=None,
         text_masks=None,
@@ -225,7 +223,6 @@ class MULTCrossModel(nn.Module):
         ecg_feats=None,
         ecg_times=None,
         ecg_masks=None,
-        **kwargs
     ):
         """dimension [batch_size, seq_len, n_features]"""
         if "TS" in self.modeltype:
