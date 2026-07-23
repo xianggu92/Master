@@ -22,22 +22,17 @@ def eval_test(args, model, test_data_loader, device):
 
     seed = args.seed
     result_dict[seed] = {}
-    for subdir, dirs, files in os.walk(rootdir):
-        substr = subdir.split('/')[-1]
-        if args.monitor not in substr:
-            continue
-
-        file = str(seed) + '.pth.tar'
-        file_path = os.path.join(subdir, file)
-        print(file_path)
-        checkpoint = torch.load(file_path, weights_only=False)
-        model.load_state_dict(checkpoint['network'])
-        test_val = evaluate_irg(args=args, device=device, data_loader=test_data_loader, model=model)
-        print(test_val)
-        for eval_type, val in test_val.items():
-            result_dict[seed][eval_type]={}
-            result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
-            result_dict[seed][eval_type]['test']=test_val[eval_type]
+    file = str(seed) + '.pth.tar'
+    file_path = os.path.join(rootdir, args.monitor, file)
+    print(file_path)
+    checkpoint = torch.load(file_path, weights_only=False)
+    model.load_state_dict(checkpoint['network'])
+    test_val = evaluate_irg(args=args, device=device, data_loader=test_data_loader, model=model)
+    print(test_val)
+    for eval_type, val in test_val.items():
+        result_dict[seed][eval_type]={}
+        result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
+        result_dict[seed][eval_type]['test']=test_val[eval_type]
 
     with open(rootdir+"/result.pkl","wb") as f:
         pickle.dump(result_dict, f)
