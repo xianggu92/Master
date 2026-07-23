@@ -4,6 +4,7 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset, RandomSampler, SequentialSampler
 import numpy as np
+import pandas as pd
 
 
 def data_prepare(args, mode, data=None):
@@ -41,6 +42,24 @@ def impute_missing_values(features, timestamps, feature_mask, duration, max_time
     return imputed_data
 
 
+def get_tau(ts_tt, ts_mask):
+    # L, [L, K]
+    tmp_time = ts_mask * np.expand_dims(ts_tt, axis=-1)  # [L,K]
+
+    new_mask = ts_mask.copy()
+    new_mask[0, :] = 1
+    tmp_time[new_mask == 0] = np.nan
+
+    # padding the missing value with the next value
+    df1 = pd.DataFrame(tmp_time)
+    df1 = df1.fillna(method='ffill')
+    tmp_time = np.array(df1)
+
+    tmp_time[1:, :] -= tmp_time[:-1, :]
+    del new_mask
+    return tmp_time * ts_mask
+
+
 class TSNoteIrgDataset(Dataset):
     """A PyTorch dataset class for handling time series note data in the MIMIC-IV dataset."""
 
@@ -75,14 +94,16 @@ class TSNoteIrgDataset(Dataset):
             else:
                 regularized_ts = None
 
+            ts_tau = torch.tensor(get_tau(ts_timestamps, ts_mask), dtype=torch.float)
             ts_features = torch.tensor(ts_features, dtype=torch.float)
-            ts_mask = torch.tensor(ts_mask, dtype=torch.long)
+            ts_mask = torch.tensor(ts_mask, dtype=torch.float)
             ts_timestamps = torch.tensor(ts_timestamps / self.max_time, dtype=torch.float)
 
             sample_dict["ts_feat"] = ts_features
             sample_dict["ts_time"] = ts_timestamps
             sample_dict["ts_mask"] = ts_mask
             sample_dict["reg_ts_feat"] = regularized_ts
+            sample_dict["ts_tau"] = ts_tau
 
         if "Text" in self.model_type:
             if not data_detail["text_missing"]:
@@ -92,7 +113,7 @@ class TSNoteIrgDataset(Dataset):
                 text_time_to_end = data_detail["text_time_to_end"].astype(np.float32)
                 text_time_to_end = torch.tensor(text_time_to_end / self.max_time, dtype=torch.float)
 
-                text_time_mask = torch.tensor([1] * len(text_time_to_end), dtype=torch.long)
+                text_time_mask = torch.tensor([1] * len(text_time_to_end), dtype=torch.float)
             else:
                 text_embeddings = torch.zeros((1, 768))
                 text_time_to_end = torch.zeros(1)
@@ -112,7 +133,7 @@ class TSNoteIrgDataset(Dataset):
                 cxr_time_to_end = data_detail["cxr_time"].astype(np.float32)
                 cxr_time_to_end = torch.tensor(cxr_time_to_end / self.max_time, dtype=torch.float)
 
-                cxr_time_mask = torch.tensor([1] * len(cxr_time_to_end), dtype=torch.long)
+                cxr_time_mask = torch.tensor([1] * len(cxr_time_to_end), dtype=torch.float)
             else:
                 cxr_feats = torch.zeros((1, 1024))
                 cxr_time_to_end = torch.zeros(1)
@@ -131,7 +152,7 @@ class TSNoteIrgDataset(Dataset):
                 ecg_time_to_end = data_detail["ecg_time"].astype(np.float32)
                 ecg_time_to_end = torch.tensor(ecg_time_to_end / self.max_time, dtype=torch.float)
 
-                ecg_time_mask = torch.tensor([1] * len(ecg_time_to_end), dtype=torch.long)
+                ecg_time_mask = torch.tensor([1] * len(ecg_time_to_end), dtype=torch.float)
             else:
                 ecg_feats = torch.zeros((1, 256))
                 ecg_time_to_end = torch.zeros(1)
@@ -175,6 +196,7 @@ def text_ts_irg_collate_fn(batch):
         ts_input_sequences = pad_sequence([example["ts_feat"] for example in batch], batch_first=True, padding_value=0)
         ts_mask_sequences = pad_sequence([example["ts_mask"] for example in batch], batch_first=True, padding_value=0)
         ts_timestamps = pad_sequence([example["ts_time"] for example in batch], batch_first=True, padding_value=0)
+        ts_taus = pad_sequence([example["ts_tau"] for example in batch], batch_first=True, padding_value=0)
         labels = torch.stack([example["label"] for example in batch])
 
         if batch[0]["reg_ts_feat"] is not None:
@@ -186,6 +208,7 @@ def text_ts_irg_collate_fn(batch):
         batch_output["ts_masks"] = ts_mask_sequences
         batch_output["ts_times"] = ts_timestamps
         batch_output["reg_ts_feats"] = reg_ts_input
+        batch_output["ts_taus"] = ts_taus
         batch_output["labels"] = labels
     except Exception:
         print("Sample with no vital signs detected")

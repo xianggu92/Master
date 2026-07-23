@@ -5,64 +5,14 @@ import torch.nn.functional as F
 from core.module import TransformerCrossEncoder, gateMLP, multiTimeAttention
 from core.patch_interpolation import PatchInterpolation
 from core.timecheat import TimeCHEATEncoder
-
-
-class BertForRepresentation(nn.Module):
-    """This class represents a BERT model for text representation.
-
-    Args:
-        args (object): The arguments for the model.
-        BioBert (object): The BioBERT model.
-
-    Attributes:
-        bert (object): The BioBERT model.
-        dropout (object): The dropout layer.
-        model_name (str): The name of the model.
-    """
-
-    def __init__(self, args, BioBert):
-        super().__init__()
-        self.bert = BioBert
-        self.dropout = torch.nn.Dropout(BioBert.config.hidden_dropout_prob)
-        self.model_name = args.model_name
-
-    def forward(self, input_ids_sequence, attention_mask_sequence, sent_idx_list=None, doc_idx_list=None):
-        """Forward pass of the model.
-
-        Args:
-            input_ids_sequence (List[Tensor]): List of input token IDs for each sequence.
-            attention_mask_sequence (List[Tensor]): List of attention masks for each sequence.
-            sent_idx_list (List[int], optional): List of sentence indices. Defaults to None.
-            doc_idx_list (List[int], optional): List of document indices. Defaults to None.
-
-        Returns:
-            Tensor: Text embeddings for each sequence.
-        """
-        txt_arr = []
-
-        for input_ids, attention_mask in zip(input_ids_sequence, attention_mask_sequence):
-            if "Longformer" in self.model_name:
-                attention_mask -= 1
-                text_embeddings = self.bert(input_ids, global_attention_mask=attention_mask)
-            else:
-                text_embeddings = self.bert(input_ids, attention_mask=attention_mask)
-            text_embeddings = text_embeddings[0][:, 0, :]
-            text_embeddings = self.dropout(text_embeddings)
-            txt_arr.append(text_embeddings)
-
-        txt_arr = torch.stack(txt_arr)
-        return txt_arr
+from core.prime.multi_model import TSModel
 
 
 class MULTCrossModel(nn.Module):
 
-    def __init__(self, args, device, modeltype=None, orig_d_ts=None, orig_reg_d_ts=None, orig_d_txt=None, ts_seq_num=None):
-        """Construct a MulT Cross model."""
+    def __init__(self, args, device):
         super(MULTCrossModel, self).__init__()
-        if modeltype != None:
-            self.modeltype = modeltype
-        else:
-            self.modeltype = args.modeltype
+        self.modeltype = args.modeltype
         self.num_heads = args.num_heads
         self.args = args
         self.layers = args.layers
@@ -74,91 +24,88 @@ class MULTCrossModel(nn.Module):
         self.irregular_learn_emb_text = args.irregular_learn_emb_text
         self.irregular_learn_emb_cxr = args.irregular_learn_emb_cxr
         self.irregular_learn_emb_ecg = args.irregular_learn_emb_ecg
+        self.use_pre_align_encoder_ts = args.use_pre_align_encoder_ts
+        self.use_shared_time_embed = args.use_shared_time_embed
         self.reg_ts = args.reg_ts
         self.TS_mixup = args.TS_mixup
         self.mixup_level = args.mixup_level
         self.task = args.task
         self.tt_max = args.tt_max
-        self.n_ref_points = args.n_ref_points
         self.cross_method = args.cross_method
         self.num_modalities = args.num_modalities
+        self.embed_dim = args.embed_dim
         self.token_type_embeddings = nn.Embedding(args.num_modalities, args.embed_dim)
 
-        if self.irregular_learn_emb_ts is not None or self.irregular_learn_emb_text is not None:
-            self.time_query = torch.linspace(0, 1.0, self.n_ref_points)
+        self.register_buffer('time_query', torch.linspace(0, 1.0, self.tt_max))
+
+        if self.use_shared_time_embed:
             self.periodic = nn.Linear(1, args.embed_time - 1)
             self.linear = nn.Linear(1, 1)
 
         if "TS" in self.modeltype:
-            self.orig_d_ts = orig_d_ts
-            self.d_ts = args.embed_dim
-            self.ts_seq_num = ts_seq_num
+            self.ts_dim = args.ts_dim
+
+            if self.use_pre_align_encoder_ts:
+                self.TSModel = TSModel(args)
 
             if self.irregular_learn_emb_ts == "mTAND":
-                self.time_attn_ts = multiTimeAttention(self.orig_d_ts * 2, self.d_ts, args.embed_time, 8)
+                if self.use_pre_align_encoder_ts:
+                    mtand_input_dim_ts = self.embed_dim
+                else:
+                    mtand_input_dim_ts = self.ts_dim * 2
+                self.time_attn_ts = multiTimeAttention(mtand_input_dim_ts, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
             elif self.irregular_learn_emb_ts == "PatchInterpolation":
-                self.patch_interpolation_ts = PatchInterpolation(self.orig_d_ts * 2, self.d_ts, args.embed_time, 8, args.tt_max, args.n_patches, args.n_ref_pointss, args.use_global)
+                self.patch_interpolation_ts = PatchInterpolation(self.ts_dim * 2, self.embed_dim, args.embed_time, 8, args.tt_max, args.n_patches, args.tt_max, args.use_global)
             elif self.irregular_learn_emb_ts == 'TimeCHEAT':
-                self.timecheat_ts = TimeCHEATEncoder(dim=self.orig_d_ts, nkernel=self.d_ts, n_patches=args.n_patches, n_layers=args.n_enc_layers, attn_head=args.num_heads)
+                self.timecheat_ts = TimeCHEATEncoder(dim=self.ts_dim, nkernel=self.embed_dim, n_patches=args.n_patches, n_layers=args.n_enc_layers, attn_head=args.num_heads, n_ref_points=self.tt_max)
 
             if self.reg_ts:
-                self.orig_reg_d_ts = orig_reg_d_ts
-                self.proj_ts = nn.Conv1d(self.orig_reg_d_ts, self.d_ts, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
+                self.reg_ts_dim = args.ts_dim * 2
+                self.proj_ts = nn.Conv1d(self.reg_ts_dim, self.embed_dim, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
 
             if self.TS_mixup:
                 if self.mixup_level == "batch":
-                    self.moe = gateMLP(input_dim=self.d_ts * 2, hidden_size=args.embed_dim, output_dim=1, dropout=args.dropout)
+                    self.moe = gateMLP(input_dim=self.embed_dim * 2, hidden_size=args.embed_dim, output_dim=1, dropout=args.dropout)
                 elif self.mixup_level == "batch_seq":
-                    self.moe = gateMLP(input_dim=self.d_ts * 2, hidden_size=args.embed_dim, output_dim=1, dropout=args.dropout)
+                    self.moe = gateMLP(input_dim=self.embed_dim * 2, hidden_size=args.embed_dim, output_dim=1, dropout=args.dropout)
                 elif self.mixup_level == "batch_seq_feature":
-                    self.moe = gateMLP(input_dim=self.d_ts * 2, hidden_size=args.embed_dim, output_dim=self.d_ts, dropout=args.dropout)
+                    self.moe = gateMLP(input_dim=self.embed_dim * 2, hidden_size=args.embed_dim, output_dim=self.embed_dim, dropout=args.dropout)
                 else:
                     raise ValueError("Unknown mixedup type")
 
         if "Text" in self.modeltype:
-            self.orig_d_txt = orig_d_txt
-            self.d_txt = args.embed_dim
+            self.txt_dim = args.txt_dim
 
             if self.irregular_learn_emb_text == "mTAND":
-                self.time_attn_text = multiTimeAttention(768, self.d_txt, args.embed_time, 8)
+                self.time_attn_text = multiTimeAttention(768, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
             elif self.irregular_learn_emb_ts == "PatchInterpolation":
-                self.patch_interpolation_txt = PatchInterpolation(768, self.d_txt, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_points, args.use_global)
+                self.patch_interpolation_txt = PatchInterpolation(768, self.embed_dim, args.embed_time, 8, args.tt_max, args.n_patch, args.tt_max, args.use_global)
             else:
-                self.proj_txt = nn.Conv1d(self.orig_d_txt, self.d_txt, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
+                self.proj_txt = nn.Conv1d(self.txt_dim, self.embed_dim, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
 
         if "CXR" in self.modeltype:
-            self.orig_d_cxr = 1024
-            self.d_cxr = args.embed_dim
+            self.cxr_dim = args.cxr_dim
 
             if self.irregular_learn_emb_cxr == "mTAND":
-                self.time_attn_cxr = multiTimeAttention(1024, self.d_cxr, args.embed_time, 8)
+                self.time_attn_cxr = multiTimeAttention(1024, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
             elif self.irregular_learn_emb_cxr == "PatchInterpolation":
-                self.patch_interpolation_cxr = PatchInterpolation(1024, self.d_cxr, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_points, args.use_global)
+                self.patch_interpolation_cxr = PatchInterpolation(1024, self.embed_dim, args.embed_time, 8, args.tt_max, args.n_patch, args.tt_max, args.use_global)
             else:
-                self.proj_cxr = nn.Conv1d(self.orig_d_cxr, self.d_cxr, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
+                self.proj_cxr = nn.Conv1d(self.cxr_dim, self.embed_dim, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
 
         if "ECG" in self.modeltype:
-            self.orig_d_ecg = 256
-            self.d_ecg = args.embed_dim
+            self.ecg_dim = args.ecg_dim
 
             if self.irregular_learn_emb_ecg == "mTAND":
-                self.time_attn_ecg = multiTimeAttention(256, self.d_ecg, args.embed_time, 8)
+                self.time_attn_ecg = multiTimeAttention(256, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
             elif self.irregular_learn_emb_ecg == "PatchInterpolation":
-                self.patch_interpolation_ecg = PatchInterpolation(256, self.d_ecg, args.embed_time, 8, args.tt_max, args.n_patch, args.n_ref_points, args.use_global)
+                self.patch_interpolation_ecg = PatchInterpolation(256, self.embed_dim, args.embed_time, 8, args.tt_max, args.n_patch, args.tt_max, args.use_global)
             else:
-                self.proj_ecg = nn.Conv1d(self.orig_d_ecg, self.d_ecg, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
+                self.proj_ecg = nn.Conv1d(self.ecg_dim, self.embed_dim, kernel_size=self.kernel_size, padding=math.floor((self.kernel_size - 1) / 2), bias=False)
 
-        dim = 0
-        if "TS" in self.modeltype:
-            dim += self.d_ts
-        if "Text" in self.modeltype:
-            dim += self.d_txt
-        if "CXR" in self.modeltype:
-            dim += self.d_cxr
-        if "ECG" in self.modeltype:
-            dim += self.d_ecg
+        dim = self.embed_dim * self.num_modalities
 
-        if self.cross_method in ["self_cross", "moe", "hme", "dense"]:
+        if self.cross_method in ["moe", "dense"]:
             self.trans_self_cross_ts_txt = self.get_cross_network(args, layers=args.layers)
             self.proj1 = nn.Linear(dim, dim)
             self.proj2 = nn.Linear(dim, dim)
@@ -172,7 +119,7 @@ class MULTCrossModel(nn.Module):
             raise ValueError("Unknown task")
 
     def get_cross_network(self, args, layers=-1):
-        embed_dim, q_seq_len = self.d_ts, self.tt_max
+        embed_dim, q_seq_len = self.embed_dim, self.tt_max
         return TransformerCrossEncoder(
             args=args,
             embed_dim=embed_dim,
@@ -209,6 +156,7 @@ class MULTCrossModel(nn.Module):
         ts_feats,
         ts_masks,
         ts_times,
+        ts_taus,
         cxr_missing=None,
         text_missing=None,
         ecg_missing=None,
@@ -226,7 +174,19 @@ class MULTCrossModel(nn.Module):
     ):
         """dimension [batch_size, seq_len, n_features]"""
         if "TS" in self.modeltype:
-            if self.irregular_learn_emb_ts == "mTAND":
+            if self.use_pre_align_encoder_ts:
+                ts_rep, ts_emb_mask = self.TSModel(ts_feats, ts_times, ts_masks, ts_taus)
+
+                if self.use_shared_time_embed:
+                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
+                    time_key_ts = self.learn_time_embedding(ts_times)
+                else:
+                    time_query = self.time_query
+                    time_key_ts = ts_times
+
+                proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, ts_rep, ts_emb_mask)
+                proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
+            elif self.irregular_learn_emb_ts == "mTAND":
                 time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
                 time_key_ts = self.learn_time_embedding(ts_times)
 
@@ -235,7 +195,6 @@ class MULTCrossModel(nn.Module):
 
                 proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, ts_masks_expanded)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
-
             elif self.irregular_learn_emb_ts == "PatchInterpolation":
                 time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).expand(ts_times.shape[0], -1, -1)
                 time_key_ts = self.learn_time_embedding(ts_times)
@@ -252,7 +211,7 @@ class MULTCrossModel(nn.Module):
             if self.reg_ts and reg_ts_feats is not None:
                 x_ts_reg = reg_ts_feats.transpose(1, 2)
 
-                proj_x_ts_reg = x_ts_reg if self.orig_reg_d_ts == self.d_ts else self.proj_ts(x_ts_reg)
+                proj_x_ts_reg = x_ts_reg if self.reg_ts_dim == self.embed_dim else self.proj_ts(x_ts_reg)
                 proj_x_ts_reg = proj_x_ts_reg.permute(2, 0, 1)
 
             if self.TS_mixup:
@@ -274,15 +233,19 @@ class MULTCrossModel(nn.Module):
                     proj_x_ts = proj_x_ts_reg
                 else:
                     raise ValueError("Unknown time series type")
-            proj_x_ts += self.token_type_embeddings(torch.zeros((self.args.tt_max, ts_feats.shape[0]), dtype=torch.long, device=ts_feats.device))
+            proj_x_ts += self.token_type_embeddings(torch.zeros((self.tt_max, ts_feats.shape[0]), dtype=torch.long, device=ts_feats.device))
 
         mod_count = 1
         if "Text" in self.modeltype:
             x_txt = text_feats
 
             if self.irregular_learn_emb_text == "mTAND":
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
-                time_key = self.learn_time_embedding(text_times)
+                if self.use_shared_time_embed:
+                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
+                    time_key = self.learn_time_embedding(text_times)
+                else:
+                    time_query = self.time_query
+                    time_key = text_times
 
                 proj_x_txt = self.time_attn_text(time_query, time_key, x_txt, text_masks)
                 proj_x_txt = proj_x_txt.transpose(0, 1)
@@ -293,7 +256,7 @@ class MULTCrossModel(nn.Module):
                 proj_x_txt = proj_x_txt.transpose(0, 1)
             else:
                 x_txt = x_txt.transpose(1, 2)
-                proj_x_txt = x_txt if self.orig_d_txt == self.d_txt else self.proj_txt(x_txt)
+                proj_x_txt = x_txt if self.txt_dim == self.embed_dim else self.proj_txt(x_txt)
                 proj_x_txt = proj_x_txt.permute(2, 0, 1)
 
             if text_missing is None or torch.all(text_missing == 0):
@@ -306,8 +269,12 @@ class MULTCrossModel(nn.Module):
 
         if "CXR" in self.modeltype:
             if self.irregular_learn_emb_cxr == "mTAND":
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
-                time_key = self.learn_time_embedding(cxr_times).to(self.device)
+                if self.use_shared_time_embed:
+                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
+                    time_key = self.learn_time_embedding(cxr_times).to(self.device)
+                else:
+                    time_query = self.time_query
+                    time_key = cxr_times
 
                 proj_x_cxr = self.time_attn_cxr(time_query, time_key, cxr_feats, cxr_masks)
                 proj_x_cxr = proj_x_cxr.transpose(0, 1)
@@ -318,7 +285,7 @@ class MULTCrossModel(nn.Module):
                 proj_x_cxr = proj_x_cxr.transpose(0, 1)
             else:
                 cxr_feats = cxr_feats.transpose(1, 2)
-                proj_x_cxr = cxr_feats if self.orig_d_cxr == self.d_cxr else self.proj_cxr(cxr_feats)
+                proj_x_cxr = cxr_feats if self.cxr_dim == self.embed_dim else self.proj_cxr(cxr_feats)
                 proj_x_cxr = proj_x_cxr.permute(2, 0, 1)
 
             if cxr_missing is None or torch.all(cxr_missing == 0):
@@ -326,13 +293,17 @@ class MULTCrossModel(nn.Module):
             elif not torch.all(cxr_missing == 0):
                 missing_indices, non_missing = self._missing_indices(cxr_missing)
                 proj_x_cxr[:, non_missing, :] += self.token_type_embeddings(mod_count * torch.ones((self.args.tt_max, len(non_missing)), dtype=torch.long, device=ts_feats.device))
-                proj_x_cxr[:, missing_indices, :] = torch.zeros((self.args.tt_max, len(missing_indices), self.args.embed_dim), dtype=proj_x_cxr.dtype, device=ts_feats.device)
+                proj_x_cxr[:, missing_indices, :] = torch.zeros((self.tt_max, len(missing_indices), self.args.embed_dim), dtype=proj_x_cxr.dtype, device=ts_feats.device)
             mod_count += 1
 
         if "ECG" in self.modeltype:
             if self.irregular_learn_emb_ecg == "mTAND":
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
-                time_key = self.learn_time_embedding(ecg_times).to(self.device)
+                if self.use_shared_time_embed:
+                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0)).to(self.device)
+                    time_key = self.learn_time_embedding(ecg_times).to(self.device)
+                else:
+                    time_query = self.time_query
+                    time_key = ecg_times
 
                 proj_x_ecg = self.time_attn_ecg(time_query, time_key, ecg_feats, ecg_masks)
                 proj_x_ecg = proj_x_ecg.transpose(0, 1)
@@ -343,7 +314,7 @@ class MULTCrossModel(nn.Module):
                 proj_x_ecg = proj_x_ecg.transpose(0, 1)
             else:
                 ecg_feats = ecg_feats.transpose(1, 2)
-                proj_x_ecg = ecg_feats if self.orig_d_ecg == self.d_ecg else self.proj_ecg(ecg_feats)
+                proj_x_ecg = ecg_feats if self.ecg_dim == self.embed_dim else self.proj_ecg(ecg_feats)
                 proj_x_ecg = proj_x_ecg.permute(2, 0, 1)
 
             if ecg_missing is None or torch.all(ecg_missing == 0):
@@ -351,7 +322,7 @@ class MULTCrossModel(nn.Module):
             elif not torch.all(ecg_missing == 0):
                 missing_indices, non_missing = self._missing_indices(ecg_missing)
                 proj_x_ecg[:, non_missing, :] += self.token_type_embeddings(mod_count * torch.ones((self.args.tt_max, len(non_missing)), dtype=torch.long, device=ts_feats.device))
-                proj_x_ecg[:, missing_indices, :] = torch.zeros((self.args.tt_max, len(missing_indices), self.args.embed_dim), dtype=proj_x_ecg.dtype, device=ts_feats.device)
+                proj_x_ecg[:, missing_indices, :] = torch.zeros((self.tt_max, len(missing_indices), self.args.embed_dim), dtype=proj_x_ecg.dtype, device=ts_feats.device)
             mod_count += 1
 
         balance_loss = None

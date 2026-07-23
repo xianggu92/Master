@@ -21,58 +21,79 @@ from transformers import (AutoTokenizer,
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Alignment text and ts data", allow_abbrev=False)
+
+    # Task
     parser.add_argument("--task", type=str, default="ihm")
+    parser.add_argument("--modeltype", type=str, default="TS_Text", help="TS, Text or TS_Text")
+    parser.add_argument("--num_modalities", default=2, type=int, help="the number of input modalities used to train transformer")
+    parser.add_argument('--num_labels', type=int, default=2)
+    parser.add_argument("--tt_max", default=48, type=int, help="max time for irregular time series.")
+
+    # Train
+    parser.add_argument("--train_batch_size", type=int, default=8, help="Batch size  for the training dataloader.")
+    parser.add_argument("--eval_batch_size", type=int, default=32, help="Batch size for the evaluation dataloader.")
+    parser.add_argument("--num_train_epochs", type=int, default=10, help="Total number of training epochs to perform.")
+    parser.add_argument("--ts_learning_rate", type=float, default=0.0004, help="Initial learning rate for TS self-attention to use.")
+    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.")
     parser.add_argument("--file_path", type=str, default="Data", help="A path to dataset folder")
     parser.add_argument("--output_dir", type=str, default="Checkpoints", help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=42, help="A seed for reproducible training.")
     parser.add_argument("--patience", type=int, default=10, help="Patience for early stopping.")
     parser.add_argument("--mode", type=str, default="train", help="train/test")
     parser.add_argument("--monitor", type=str, default="auprc", help="Metric to monitor when saving best models.")
-    parser.add_argument("--modeltype", type=str, default="TS_Text", help="TS, Text or TS_Text")
-    parser.add_argument('--num_labels', type=int, default=2)
-    parser.add_argument("--train_batch_size", type=int, default=8, help="Batch size  for the training dataloader.")
-    parser.add_argument("--eval_batch_size", type=int, default=32, help="Batch size for the evaluation dataloader.")
-    parser.add_argument("--num_train_epochs", type=int, default=10, help="Total number of training epochs to perform.")
-    parser.add_argument("--ts_learning_rate", type=float, default=0.0004, help="Initial learning rate for TS self-attention to use.")
-    parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument("--kernel_size", type=int, default=1, help="Kernel size for CNN.")
-    parser.add_argument("--num_heads", type=int, default=8, help="Number of heads.")
-    parser.add_argument("--layers", type=int, default=3, help="Number of transformer encoder layer.")
-    parser.add_argument("--embed_dim", default=30, type=int, help="attention embedding dim.")
-    parser.add_argument("--irregular_learn_emb_ts", type=str, default=None)
-    parser.add_argument("--irregular_learn_emb_text", type=str, default=None)
-    parser.add_argument("--irregular_learn_emb_cxr", type=str, default=None)
-    parser.add_argument("--irregular_learn_emb_ecg", type=str, default=None)
-    parser.add_argument("--reg_ts", action='store_true')
-    parser.add_argument("--tt_max", default=48, type=int, help="max time for irregular time series.")
-    parser.add_argument("--orig_d_ts", default=30, type=int, help="Number of time series variables.")
-    parser.add_argument("--orig_d_txt", default=768, type=int, help="Dimention of text embeddings.")
-    parser.add_argument("--embed_time", default=64, type=int, help="emdedding for time.")
-    parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
-    parser.add_argument("--n_patches", default=2, type=int, help="Number of patches in patch interpolation and the TimeCHEAT encoder.")
-    parser.add_argument("--use_global", action='store_true', help="Use global interpolation in patch interpolation.")
-    parser.add_argument("--n_ref_points", default=48, type=int, help="Number of reference points.")
-    parser.add_argument("--n_enc_layers", type=int, default=1, help="Number of irregular encoder layers.")
-
-    parser.add_argument('--TS_mixup', action='store_true', help='mix up reg and irg data')
-    parser.add_argument("--mixup_level", default=None, type=str, help="mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
-
     parser.add_argument('--fp16', action='store_true')
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument("--wandb", action='store_true')
     parser.add_argument("--debug", action='store_true')
     parser.add_argument("--gradient_clipping", action='store_true')
 
+    # Model
+    parser.add_argument("--embed_dim", default=30, type=int, help="Dimension of hidden representations.")
+    parser.add_argument("--num_heads", type=int, default=8, help="Number of heads.")
+    parser.add_argument("--layers", type=int, default=3, help="Number of transformer encoder layer.")
+    parser.add_argument("--embed_time", default=64, type=int, help="Dimension of time emdedding.")
+    parser.add_argument("--use_shared_time_embed", action='store_true')
+    parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
+    parser.add_argument("--n_enc_layers", type=int, default=1, help="Number of irregular encoder layers.")
+    parser.add_argument("--n_patches", default=2, type=int, help="Number of patches in patch interpolation and the TimeCHEAT encoder.")
+    parser.add_argument("--use_global", action='store_true', help="Use global interpolation in patch interpolation.")
+
+    # MoE
     parser.add_argument("--cross_method", default='moe', type=str, help="all fusion methods: moe, hme, moe_cross, self_cross, MAGGate, MulT, Outer, concat")
-    parser.add_argument("--hidden_size", default=512, type=int, help="hidden size of MLP second layer")
+    parser.add_argument("--hidden_size", default=512, type=int, help="Dimension of MLP second layer")
     parser.add_argument("--gating_function", nargs='*', type=str, help="all gating functions: softmax, laplace, gaussian, enter at least one")
     parser.add_argument("--num_of_experts", nargs='*', type=int, help="number of MLPs in MoE, for HME need to specify each level")
     parser.add_argument("--top_k", nargs='*', type=int, help="the number of experts finally combined together for joint and permod routers")
     parser.add_argument("--disjoint_top_k", default=2, type=int, help="the number of experts finally combined together for disjoint routers")
-    parser.add_argument("--num_modalities", default=2, type=int, help="the number of input modalities used to train transformer")
     parser.add_argument("--router_type", default='joint', type=str, help="all router types: joint, permod, disjoint")
     parser.add_argument("--use_balance_loss", action='store_true', help="Whether to include balance_loss term in total loss (only for MoE/HME fusion methods)")
     parser.add_argument("--balance_loss_coef", default=0.01, type=float, help="Coefficient for balance_loss term in total loss")
+
+    # Data
+    parser.add_argument("--ts_dim", type=int, default=30, help="Number of time series variables.")
+    parser.add_argument("--txt_dim", default=768, type=int, help="Dimension of text embeddings.")
+    parser.add_argument("--cxr_dim", default=1024, type=int, help="Dimension of CXR embeddings.")
+    parser.add_argument("--ecg_dim", default=256, type=int, help="Dimension of ECG embeddings.")
+
+    # Time series
+    parser.add_argument("--irregular_learn_emb_ts", type=str, default=None)
+    parser.add_argument("--num_heads_ts", type=int, default=8, help="Number of heads.")
+    parser.add_argument("--kernel_size", type=int, default=1, help="Kernel size for UTDE imputation CNN.")
+    parser.add_argument("--reg_ts", action='store_true')
+    parser.add_argument('--TS_mixup', action='store_true', help='Mix up regular and iregular time series data')
+    parser.add_argument("--mixup_level", default=None, type=str, help="Mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
+    parser.add_argument('--use_pre_align_encoder_ts', action='store_true', help='Use PRIME encoder to process time series data before alignment.')
+    parser.add_argument("--ts_dual_attention_layer", type=int, default=1)
+    
+    # Text
+    parser.add_argument("--irregular_learn_emb_text", type=str, default=None)
+
+    # CXR
+    parser.add_argument("--irregular_learn_emb_cxr", type=str, default=None)
+
+    # ECG
+    parser.add_argument("--irregular_learn_emb_ecg", type=str, default=None)
+    
     args = parser.parse_known_args()[0]
     return args
 

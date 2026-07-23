@@ -22,6 +22,8 @@ def make_save_dir(args):
 
     if args.irregular_learn_emb_ts is not None and "TS" in args.modeltype:
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
+    if args.use_pre_align_encoder_ts:
+        output_dir += "_TSEncoder_" + str(args.ts_dual_attention_layer)
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
         output_dir += "_Text_" + args.irregular_learn_emb_text + "_" + str(args.embed_time)
     if args.irregular_learn_emb_cxr is not None and "CXR" in args.modeltype:
@@ -29,32 +31,34 @@ def make_save_dir(args):
     if args.irregular_learn_emb_ecg is not None and 'ECG' in args.modeltype:
         output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
 
+    if args.use_shared_time_embed:
+        output_dir += '_shared'
+
     if 'PatchInterpolation' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_patch_' + str(args.n_patches) + '_ref_point_' + str(args.n_ref_points)
+        output_dir += '_patch_' + str(args.n_patches)
 
         if args.use_global:
             output_dir += '_global'
 
     if 'TimeCHEAT' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_patch_' + str(args.n_patches) + '_ref_point_' + str(args.n_ref_points) + '_enc_layer_' + str(args.n_enc_layers)
+        output_dir += '_patch_' + str(args.n_patches) + '_enc_layer_' + str(args.n_enc_layers)
 
-    if args.num_modalities >= 1:
-        output_dir += '_layer' + str(args.layers)
-        output_dir+= "_" + args.cross_method
+    output_dir += '_layer' + str(args.layers)
+    output_dir+= "_" + args.cross_method
 
-        if args.cross_method == 'moe':
-            output_dir += f"_{args.gating_function}"
-            output_dir += f"_{args.router_type}"
-            output_dir += f"_expert_{args.num_of_experts}"
-            output_dir += f"_top_{args.top_k}"
-            if args.router_type == 'disjoint':
-                output_dir += f"_disjoint_{args.disjoint_top_k}"
+    if args.cross_method == 'moe':
+        output_dir += f"_{args.gating_function}"
+        output_dir += f"_{args.router_type}"
+        output_dir += f"_expert_{args.num_of_experts}"
+        output_dir += f"_top_{args.top_k}"
+        if args.router_type == 'disjoint':
+            output_dir += f"_disjoint_{args.disjoint_top_k}"
 
     if args.TS_mixup:
-        output_dir += "_" + args.mixup_level
+        output_dir += "_" + args.mixup_level + "_kernel_" + str(args.kernel_size)
 
     output_dir += "_lr_" + str(args.ts_learning_rate) + "_epoch_" + str(args.num_train_epochs) + "_head_" + str(args.num_heads) + "_embed_" + str(args.embed_dim) +\
-        "_kernel_" + str(args.kernel_size) + "_bs_" + str(args.train_batch_size) + "_mlp_hidden_" + str(args.hidden_size) + '/'
+        "_bs_" + str(args.train_batch_size) + "_mlp_hidden_" + str(args.hidden_size) + '/'
 
     args.ck_file_path = output_dir
     os.makedirs(output_dir,  exist_ok=True)

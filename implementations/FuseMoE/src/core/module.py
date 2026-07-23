@@ -41,19 +41,29 @@ class gateMLP(nn.Module):
 
 class multiTimeAttention(nn.Module):
     "mTAND module"
-    def __init__(self, input_dim, nhidden=16,
-                 embed_time=16, num_heads=1):
+    def __init__(self, input_dim, nhidden=16, embed_time=16, num_heads=1, use_shared_time_embed=False):
         super(multiTimeAttention, self).__init__()
         assert embed_time % num_heads == 0
         self.embed_time = embed_time
         self.embed_time_k = embed_time // num_heads
         self.h = num_heads
         self.dim = input_dim
+        self.use_shared_time_embed = use_shared_time_embed
         self.nhidden = nhidden
         self.linears = nn.ModuleList([nn.Linear(embed_time, embed_time),
                                       nn.Linear(embed_time, embed_time),
                                       nn.Linear(input_dim*num_heads, nhidden)])
         self.head_output_identity = nn.Identity()
+
+        if not self.use_shared_time_embed:
+            self.periodic = nn.Linear(1, self.embed_time - 1)
+            self.linear = nn.Linear(1, 1)
+
+    def learn_time_embedding(self, tt):
+        tt = tt.unsqueeze(-1)  # B L 1
+        out2 = torch.sin(self.periodic(tt))
+        out1 = self.linear(tt)
+        return torch.cat([out1, out2], -1)
 
     def attention(self, query, key, value, mask=None, dropout=None):
         "Compute 'Scaled Dot Product Attention'"
@@ -78,6 +88,10 @@ class multiTimeAttention(nn.Module):
 
     def forward(self, query, key, value, mask=None, dropout=0.1):
         "Compute 'Scaled Dot Product Attention'"
+        if not self.use_shared_time_embed:
+            query = self.learn_time_embedding(query.unsqueeze(0))
+            key = self.learn_time_embedding(key)
+
         batch, seq_len, dim = value.size()
         if mask is not None:
             # Same mask applied to all h heads.

@@ -15,6 +15,10 @@ import wandb
 
 def main():
     args = parse_args()
+    args.num_modalities = len(args.modeltype.split('_'))
+    args.output_dir = f"../run/{args.modeltype}"
+    args.tt_max = int(args.task.split('-')[1])
+    args.num_labels = 25 if 'pheno' in args.task else 2
 
     if args.fp16:
         args.mixed_precision="fp16"
@@ -39,7 +43,7 @@ def main():
     elif args.mode=='test':
          _, _, test_data_loader = data_prepare(args, 'test')
 
-    model = MULTCrossModel(args=args,device=device,orig_d_ts=30, orig_reg_d_ts=60, orig_d_txt=768, ts_seq_num=args.tt_max)
+    model = MULTCrossModel(args=args, device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.ts_learning_rate)
 
 
