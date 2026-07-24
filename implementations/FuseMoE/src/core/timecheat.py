@@ -36,7 +36,10 @@ class MAB2(nn.Module):
         O = O if getattr(self, 'ln0', None) is None else self.ln0(O)
         O = O + F.relu(self.fc_o(O))
         O = O if getattr(self, 'ln1', None) is None else self.ln1(O)
-        return O
+
+        A = A.view(self.num_heads, Q.size(0), A.size(1), A.size(2)).transpose(0, 1)
+
+        return O, A
 
 
 class TimeCHEATEncoder(nn.Module):
@@ -128,19 +131,19 @@ class TimeCHEATEncoder(nn.Module):
             k_t = self.gather(T_, T_inds_)  # BxK_max x embd_len
             k = torch.cat([k_t, U_], -1)  # BxK_max x 2 * embd_len
 
-            C__ = self.channel_time_attn[i](q_c, k, C_mask)  # attn (channel_embd, concat(time, values)) along with the mask
+            C__, _ = self.channel_time_attn[i](q_c, k, C_mask)  # attn (channel_embd, concat(time, values)) along with the mask
 
             # times as queries
             q_t = T_
             k_c = self.gather(C_, C_inds_)
             k = torch.cat([k_c, U_], -1)
-            T__ = self.time_channel_attn[i](q_t, k, T_mask)
+            T__, _ = self.time_channel_attn[i](q_t, k, T_mask)
 
             # updating edge weights
             U_ = self.relu(U_ + self.edge_nn[i](torch.cat([U_, k_t, k_c], -1))) * mk_[:, :, None].repeat(1, 1, self.nkernel)
 
             # updating only channel nodes
-            C_ = self.channel_attn[i](C__, C__)
+            C_, _ = self.channel_attn[i](C__, C__)
             T_ = T__
 
         # 方法 1: 取出參考點對應的節點特徵
