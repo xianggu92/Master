@@ -14,7 +14,7 @@ from torch.distributions.normal import Normal
 import numpy as np
 from core.activations import ACT2FN
 from utils.config import MoEConfig
-
+import pdb
 
 class SparseDispatcher(object):
     """Helper for implementing a mixture of experts.
@@ -84,7 +84,7 @@ class SparseDispatcher(object):
 
         # expand according to batch index so we can just split by _part_sizes
         if isinstance(inp, list) and self._router_type == 'joint':
-            inp = torch.cat(inp, dim=1)
+            inp = torch.concat(inp, dim=1)
         inp_exp = inp[self._batch_index].squeeze(1)
         return torch.split(inp_exp, self._part_sizes, dim=0)
 
@@ -103,15 +103,17 @@ class SparseDispatcher(object):
         """
         # apply exp to expert outputs, so we are not longer in log space
         # concat all sample outputs from each expert
-        stitched = torch.cat(expert_out, 0)#.exp()
+        stitched = torch.cat(expert_out, 0).exp()
         if multiply_by_gates:
             stitched = stitched.mul(self._nonzero_gates)
         zeros = torch.zeros(self._gates.size(0), expert_out[-1].size(1), requires_grad=True, device=stitched.device)
         # combine samples that have been processed by the same k experts
         # this is the weighted combination step
         combined = zeros.index_add(0, self._batch_index, stitched.float())
-
-        return combined
+        # add eps to all zero values in order to avoid nans when going back to log space
+        combined[combined == 0] = np.finfo(float).eps
+        # back to log space
+        return combined.log()
 
     def expert_to_gates(self):
         """Gate values corresponding to the examples in the per-expert `Tensor`s.
@@ -130,12 +132,14 @@ class MLP(nn.Module):
         self.fc2 = nn.Linear(hidden_size, output_size)
         self.dropout = nn.Dropout(config.dropout)
         self.activation = ACT2FN[config.hidden_act]
+        self.log_soft = nn.LogSoftmax(1)
 
     def forward(self, x):
         out = self.fc1(x)
         out = self.activation(out)
         out = self.dropout(out)
         out = self.fc2(out)
+        out = self.log_soft(out)
         return out
 
 
@@ -243,19 +247,15 @@ class MoE(nn.Module):
             threshold_positions_if_in = torch.arange(batch, device=clean_values.device) * m + self.disjoint_k
         else:
             threshold_positions_if_in = torch.arange(batch, device=clean_values.device) * m + self.k
-        
-        # 每個 batch 第 k+1 大的值
         threshold_if_in = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_in), 1)
         is_in = torch.gt(noisy_values, threshold_if_in)
-
-        # 每個 batch 第 k 大的值
         threshold_positions_if_out = threshold_positions_if_in - 1
         threshold_if_out = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_out), 1)
         # is each value currently in the top k.
         normal = Normal(self.mean, self.std)
 
-        prob_if_in = normal.cdf((clean_values - threshold_if_in)/(noise_stddev+1e-10))
-        prob_if_out = normal.cdf((clean_values - threshold_if_out)/(noise_stddev+1e-10))
+        prob_if_in = normal.cdf((clean_values - threshold_if_in)/noise_stddev)
+        prob_if_out = normal.cdf((clean_values - threshold_if_out)/noise_stddev)
         prob = torch.where(is_in, prob_if_in, prob_if_out)
         return prob
 
@@ -314,7 +314,7 @@ class MoE(nn.Module):
 
         if self.router_type == 'joint':
             if isinstance(x, list):
-                embeddings = torch.cat(x, dim=1)
+                embeddings = torch.concat(x, dim=1)
             else:
                 embeddings = x
             all_logits = self._get_logits(embeddings, train, noise_epsilon)
