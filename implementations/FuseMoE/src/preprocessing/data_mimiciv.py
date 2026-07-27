@@ -149,6 +149,12 @@ class TSNoteIrgDataset(Dataset):
                 ecg_feats = data_detail["ecg_feats"]
                 ecg_feats = torch.tensor(np.array(ecg_feats), dtype=torch.float).squeeze(1)
 
+                # If any ecg_feats are nan, replace with 0
+                ecg_feats[torch.isnan(ecg_feats)] = 0
+
+                # If any ecg_feats are inf, replace with 0
+                ecg_feats[torch.isinf(ecg_feats)] = 0
+
                 ecg_time_to_end = data_detail["ecg_time"].astype(np.float32)
                 ecg_time_to_end = torch.tensor(ecg_time_to_end / self.max_time, dtype=torch.float)
 
