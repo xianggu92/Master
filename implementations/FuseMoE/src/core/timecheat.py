@@ -222,10 +222,6 @@ class TimeCHEATEncoder(nn.Module):
             patch_mask[i] = patch_mask[i, sorted_index]
             patch[i] = patch[i, sorted_index]
             patch_time[i] = patch_time[i, sorted_index]
-
-            # 將遮罩中參考點的位置設為 true
-            rp_idx = sorted_index[num_observed[i]:num_observed[i] + n_ref_points] # (n_ref_points)
-            rp_idx_expanded = rp_idx.unsqueeze(-1).expand(-1, rp_mask.size(-1)) # (n_ref_points, n_dim)
-            rp_mask[i].scatter_(0, rp_idx_expanded, 1.)
+            rp_mask[i, sorted_index[num_observed[i]:num_observed[i] + n_ref_points]] = 1.
 
         return patch, patch_mask, patch_time, rp_mask
