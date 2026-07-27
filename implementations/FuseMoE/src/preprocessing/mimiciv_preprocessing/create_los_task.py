@@ -9,7 +9,7 @@ import pickle
 
 mimic_iv_path = "/mnt/nfs_share/Public_Data/Dataset_MIMICs/physionet.org/files/mimic-iv/2.2/"
 preprocessing_dir = "/mnt/data/yihua/master/datasets/mimic-iv/preprocessing"
-output_dir = "/mnt/nfs_share/Public_Data/Dataset_MIMICs/preprcocessed"
+output_dir = "/mnt/nfs_share/Public_Data/Dataset_MIMICs/preprocessed"
 
 
 restrict_48_hours = True
