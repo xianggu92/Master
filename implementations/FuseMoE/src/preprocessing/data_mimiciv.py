@@ -147,7 +147,7 @@ class TSNoteIrgDataset(Dataset):
         if "ECG" in self.model_type:
             if not data_detail["ecg_missing"]:
                 ecg_feats = data_detail["ecg_feats"]
-                ecg_feats = torch.tensor(np.array(ecg_feats), dtype=torch.float)
+                ecg_feats = torch.tensor(np.array(ecg_feats), dtype=torch.float).squeeze(1)
 
                 ecg_time_to_end = data_detail["ecg_time"].astype(np.float32)
                 ecg_time_to_end = torch.tensor(ecg_time_to_end / self.max_time, dtype=torch.float)
