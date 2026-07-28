@@ -17,7 +17,7 @@ include_notes = True
 include_cxr = True
 include_ecg = True
 standard_scale = True
-include_missing = False
+include_missing = True
 
 
 # ireg_vitals_ts_df = pd.read_pickle(os.path.join(preprocessing_dir, "ts_vitals_icu.pkl"))
