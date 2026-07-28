@@ -111,7 +111,8 @@ class SparseDispatcher(object):
         # this is the weighted combination step
         combined = zeros.index_add(0, self._batch_index, stitched.float())
         # add eps to all zero values in order to avoid nans when going back to log space
-        combined[combined == 0] = np.finfo(float).eps
+        # combined[combined == 0] = np.finfo(float).eps
+        combined = combined.clamp_min(torch.finfo(combined.dtype).eps)
         # back to log space
         return combined.log()
 
