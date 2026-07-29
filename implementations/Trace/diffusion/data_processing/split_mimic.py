@@ -14,7 +14,7 @@ def main():
     with open(args.input_path, 'rb') as f:
         full_data = pickle.load(f)
 
-    with open(os.path.join(args.dataset_dir, f"full_{args.task_name}_lengths.json"), 'r') as f:
+    with open(os.path.join(args.dataset_dir, args.output_folder_name,  f"full_{args.task_name}_lengths.json"), 'r') as f:
         lengths = json.load(f)
 
     train_len = lengths['train']
