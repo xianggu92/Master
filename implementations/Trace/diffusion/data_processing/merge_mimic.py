@@ -4,25 +4,25 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, required=True, choices=["ihm", "los","phe"], help="name of the task (for logging purposes)")
+    parser.add_argument("--task_name", type=str, required=True, help="name of the task (for logging purposes)")
     parser.add_argument("--dataset_dir", type=str, default='../dataset')
     args = parser.parse_args()
 
-    output_path = os.path.join(args.dataset_dir, f"full_{args.task_name}.pkl")
+    output_path = os.path.join(args.dataset_dir, f"full_{args.task_name}_stays.pkl")
 
     if os.path.exists(output_path):
         print(f"Output file {output_path} already exists. Skipping merging.")
         return
 
     task_file_map = {
-        "ihm": {
-            "train": "train_ihm-48-cxr-notes-ecg_stays.pkl",
-            "val": "val_ihm-48-cxr-notes-ecg_stays.pkl",
-            "test": "test_ihm-48-cxr-notes-ecg_stays.pkl"
+        "ihm-48-cxr-notes-ecg": {
+            "train": f"train_{args.task_name}_stays.pkl",
+            "val": f"val_{args.task_name}_stays.pkl",
+            "test": f"test_{args.task_name}_stays.pkl"
         },
         "los": {
-            "train": "train_los-48-cxr-notes-ecg-missingInd_stays.pkl",
-            "val": "val_los-48-cxr-notes-ecg-missingInd_stays.pkl",
+            "train": "train_los-48-cxr-notes-ecg-_stays.pkl",
+            "val": "val_los-48-cxr-notes-ecg_stays.pkl",
             "test": "test_los-48-cxr-notes-ecg-missingInd_stays.pkl"
         },
         "phe": {

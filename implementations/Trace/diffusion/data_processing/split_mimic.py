@@ -5,7 +5,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, required=True, choices=["ihm", "los","phe"], help="name of the task (for logging purposes)")
+    parser.add_argument("--task_name", type=str, required=True, help="name of the task (for logging purposes)")
     parser.add_argument("--dataset_dir", type=str, default='../dataset')
     parser.add_argument("--input_path", type=str, required=True, help="path to the generated full dataset (.pkl) that needs to be split into train/val/test sets")
     parser.add_argument("--output_folder_name", type=str, default='generated_mimic')
