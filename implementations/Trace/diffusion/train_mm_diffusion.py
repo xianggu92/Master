@@ -165,9 +165,9 @@ def main():
     n = len(samples)
     assert n >= 10, f"dataset too small: {n}"
 
-    # 80/10/10 split
-    n_train = int(n * 0.8)
-    n_val = max(1, int(n * 0.1))
+    # 75/15/15 split
+    n_train = int(n * 0.75)
+    n_val = max(1, int(n * 0.15))
     n_train = max(1, n_train)
     if n_train + n_val >= n:
         n_train = max(1, n - n_val - 1)
