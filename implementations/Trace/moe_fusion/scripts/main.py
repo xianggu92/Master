@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tensorboardX import SummaryWriter
+# from tensorboardX import SummaryWriter
 
 import warnings
 import time
@@ -43,7 +43,8 @@ def main():
     print(device)
     os.makedirs(args.output_dir, exist_ok = True)
     if args.tensorboard_dir!=None:
-        writer = SummaryWriter(args.tensorboard_dir)
+        pass
+        # writer = SummaryWriter(args.tensorboard_dir)
     else:
         writer=None
 
