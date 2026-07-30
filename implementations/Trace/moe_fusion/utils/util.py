@@ -160,7 +160,10 @@ def parse_args():
     return args
 
 def loadBert(args,device):
-    if args.model_name!=None:
+    if args.model_path is not None:
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        BioBert = AutoModel.from_pretrained(args.model_path)
+    elif args.model_name is not None:
         if args.model_name== 'BioBert':
             tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
             BioBert=AutoModel.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
@@ -178,11 +181,7 @@ def loadBert(args,device):
         else:
             raise ValueError("model_name should be BioBert,bioRoberta,bioLongformer or Bert")
     else:
-        if args.model_path!=None:
-            tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-            BioBert = AutoModel.from_pretrained(args.model_path)
-        else:
-            raise ValueError("provide either model_name or model_path")
+        raise ValueError("provide either model_name or model_path")
 
     BioBert = BioBert.to(device)
     BioBertConfig = BioBert.config
@@ -363,4 +362,3 @@ def merge_reg_irg(dataPath_reg, dataPath_irg):
 
     with open(dataPath_reg, 'wb') as f:
         pickle.dump(data_reg,f)
-
