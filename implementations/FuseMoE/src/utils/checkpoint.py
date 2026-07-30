@@ -24,6 +24,8 @@ def make_save_dir(args):
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
     if args.use_pre_align_encoder_ts:
         output_dir += "_TSEncoder_" + str(args.ts_dual_attention_layer)
+    if args.impute:
+        output_dir += '_impute'
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
         output_dir += "_Text_" + args.irregular_learn_emb_text + "_" + str(args.embed_time)
     if args.irregular_learn_emb_cxr is not None and "CXR" in args.modeltype:

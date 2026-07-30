@@ -73,6 +73,7 @@ class TSNoteIrgDataset(Dataset):
         self.mode = mode
         self.max_time = args.tt_max
         self.reg_ts = args.reg_ts
+        self.impute = args.impute
         if args.debug:
             self.data = self.data[:100]
 
@@ -84,15 +85,14 @@ class TSNoteIrgDataset(Dataset):
         sample_dict["label"] = label
 
         if "TS" in self.model_type:
-            ts_features = data_detail.get('irg_ts_imputed', None)
-            ts_timestamps = data_detail["ts_tt"].astype(np.float32)
-            ts_mask = data_detail["irg_ts_mask"]
-
-            # 沒有插補資料就使用原始資料，否則把遮罩全設1
-            if ts_features is None:
-                ts_features = data_detail['irg_ts']
+            if self.impute:
+                ts_features = data_detail['irg_ts_imputed']
+                ts_mask = np.ones(ts_features.shape)
             else:
-                ts_mask = np.ones(data_detail["irg_ts_mask"].shape)
+                ts_features = data_detail['irg_ts']
+                ts_mask = data_detail["irg_ts_mask"]
+
+            ts_timestamps = data_detail["ts_tt"].astype(np.float32)
 
             if self.reg_ts:
                 regularized_ts = impute_missing_values(ts_features, ts_timestamps, ts_mask, 1, self.max_time)

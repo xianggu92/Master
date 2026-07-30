@@ -84,6 +84,7 @@ def parse_args():
     parser.add_argument("--mixup_level", default=None, type=str, help="Mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
     parser.add_argument('--use_pre_align_encoder_ts', action='store_true', help='Use PRIME encoder to process time series data before alignment.')
     parser.add_argument("--ts_dual_attention_layer", type=int, default=1)
+    parser.add_argument("--impute", action='store_true', help='Use irregular time series imputed by diffusion models.')
     
     # Text
     parser.add_argument("--irregular_learn_emb_text", type=str, default=None)
