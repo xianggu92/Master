@@ -232,7 +232,7 @@ class TSNote_Irg(Dataset):
 
         if 'ECG' in self.modeltype and not data_detail['ecg_missing']:
             ecg_feats = data_detail['ecg_feats']
-            ecg_feats = torch.tensor(ecg_feats, dtype=torch.float)
+            ecg_feats = torch.tensor(ecg_feats, dtype=torch.float)[:, 0, :]
 
             # If any ecg_feats are nan, replace with 0
             ecg_feats[torch.isnan(ecg_feats)] = 0
