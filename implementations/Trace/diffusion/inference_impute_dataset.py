@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from dataset_mm import MultiModalImputationDataset, collate_mm, load_samples_cached
 from csdi_mm_moe import CSDI_MultiModal_MoE
+from reproducibility import configure_reproducibility, deterministic_median
 
 
 @torch.no_grad()
@@ -29,7 +30,7 @@ def impute_batch_full(model, batch, n_samples: int = 20):
     side_info = model.get_side_info_mm(observed_tp, cond_mask, fused_ctx)
 
     samples = model.impute(observed_data, cond_mask, side_info, n_samples)
-    pred = samples.median(dim=1).values  # (B, K, L)
+    pred = deterministic_median(samples, dim=1)  # (B, K, L)
 
     imputed = observed_data * observed_mask + pred * (1.0 - observed_mask)
     return imputed, observed_mask, seq_len, moe_w
@@ -49,6 +50,12 @@ def main():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--n_samples", type=int, default=20)
     parser.add_argument("--tiny", type=int, default=None)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="sampling seed; defaults to the training seed stored in the checkpoint",
+    )
 
     # cache
     parser.add_argument("--cache_dir", type=str, default=None)
@@ -62,7 +69,14 @@ def main():
         os.makedirs(args.output_dir, exist_ok=True)
         args.output_path = os.path.join(args.output_dir, args.output_name)
 
-    # device
+    # load checkpoint
+    ckpt = torch.load(args.model_path, map_location="cpu")
+    config = ckpt["config"]
+    seed = config["train"]["seed"] if args.seed is None else args.seed
+    seed = configure_reproducibility(seed)
+    print(f"reproducibility seed: {seed} (deterministic algorithms enabled)")
+
+    # Select the device only after deterministic CUDA settings are configured.
     if torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
         device = torch.device(f"cuda:{args.gpu}")
@@ -70,9 +84,6 @@ def main():
         device = torch.device("cpu")
     print("device:", device)
 
-    # load checkpoint
-    ckpt = torch.load(args.model_path, map_location="cpu")
-    config = ckpt["config"]
     num_experts = int(config.get("multimodal", {}).get("num_experts", 3))
     print(f"num_experts(from ckpt config) = {num_experts}")
 

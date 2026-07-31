@@ -62,12 +62,12 @@ class MultiModalImputationDataset(Dataset):
         self.cxr_dim = int(cxr_dim)
         self.eval_mask_ratio = float(eval_mask_ratio)
         self.mode = mode
-        self.rng = np.random.RandomState(seed)
+        self.seed = int(seed)
 
     def __len__(self):
         return len(self.samples)
 
-    def _make_gt_mask(self, observed_mask: np.ndarray):
+    def _make_gt_mask(self, observed_mask: np.ndarray, sample_index: int):
         """
         observed_mask: (L, 30) binary mask with 0/1 entries  
         gt_mask: evaluation ground truth mask created by further masking part of the observed_mask (as target)
@@ -88,7 +88,10 @@ class MultiModalImputationDataset(Dataset):
         if m <= 0:
             return obs
 
-        choose = self.rng.choice(len(idx), size=m, replace=False)
+        # Make the held-out mask a pure function of seed and sample index. This
+        # remains stable across epochs and DataLoader worker counts/scheduling.
+        rng = np.random.RandomState((self.seed + int(sample_index)) % (2**32))
+        choose = rng.choice(len(idx), size=m, replace=False)
         gt = obs.copy()
         gt[idx[choose, 0], idx[choose, 1]] = 0.0
         return gt
@@ -127,7 +130,7 @@ class MultiModalImputationDataset(Dataset):
         ecg_vec  = np.nan_to_num(ecg_vec,  nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
         cxr_vec  = np.nan_to_num(cxr_vec,  nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
-        gt_mask = self._make_gt_mask(irg_ts_mask)
+        gt_mask = self._make_gt_mask(irg_ts_mask, i)
         hist_mask = irg_ts_mask.copy()
 
         out = {

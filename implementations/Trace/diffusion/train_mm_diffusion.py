@@ -1,7 +1,6 @@
 import os
 import math
 import argparse
-import random
 import csv
 import numpy as np
 import torch
@@ -13,13 +12,7 @@ import matplotlib.pyplot as plt
 from config_mm import get_config
 from dataset_mm import MultiModalImputationDataset, collate_mm, load_samples_cached
 from csdi_mm_moe import CSDI_MultiModal_MoE
-
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+from reproducibility import configure_reproducibility, deterministic_median
 
 
 @torch.no_grad()
@@ -34,7 +27,7 @@ def eval_one_epoch_rmse(model, loader, device, n_samples=2, desc="val"):
         samples, observed_data, target_mask, observed_mask, tp, moe_w = model.evaluate(
             batch, n_samples=n_samples
         )
-        pred = samples.median(dim=1).values  # (B,K,L)
+        pred = deterministic_median(samples, dim=1)  # (B,K,L)
 
         err = (pred - observed_data) ** 2
         mse = (err * target_mask).sum().item()
@@ -76,6 +69,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--seed", type=int, default=None, help="override the config RNG seed")
 
     # device / loader
     parser.add_argument("--gpu", type=int, default=0)
@@ -110,6 +104,8 @@ def main():
         config["train"]["batch_size"] = args.batch_size
     if args.lr is not None:
         config["train"]["lr"] = args.lr
+    if args.seed is not None:
+        config["train"]["seed"] = int(args.seed)
 
     if args.num_workers is not None:
         config["train"]["num_workers"] = args.num_workers
@@ -123,6 +119,9 @@ def main():
 
     num_experts = int(config["multimodal"].get("num_experts", 3))
 
+    seed = configure_reproducibility(config["train"]["seed"])
+    print(f"reproducibility seed: {seed} (deterministic algorithms enabled)")
+
     # device
     if torch.cuda.is_available():
         torch.cuda.set_device(args.gpu)
@@ -130,8 +129,6 @@ def main():
     else:
         device = torch.device("cpu")
     print(f"device: {device}")
-
-    set_seed(config["train"]["seed"])
 
     # output dir named by expert count
     if args.folder_name is None:
