@@ -1,5 +1,4 @@
 import os
-import math
 import argparse
 import csv
 import numpy as np
@@ -12,44 +11,39 @@ import matplotlib.pyplot as plt
 from config_mm import get_config
 from dataset_mm import MultiModalImputationDataset, collate_mm, load_samples_cached
 from csdi_mm_moe import CSDI_MultiModal_MoE
-from reproducibility import configure_reproducibility, deterministic_median
+from reproducibility import configure_reproducibility
 
 
 @torch.no_grad()
-def eval_one_epoch_rmse(model, loader, device, n_samples=2, desc="val"):
-    """Compute RMSE on *target_mask* region (the held-out missing in val/test)."""
+def eval_one_epoch_diffusion_mse(model, loader, desc="val"):
+    """Compute diffusion noise-prediction MSE on the validation target region."""
     model.eval()
-    total_mse = 0.0
-    total_cnt = 0.0
+    weighted_loss_sum = 0.0
+    total_target_count = 0.0
 
-    pbar = tqdm(loader, desc=f"[{desc}] sampling (n_samples={n_samples})", leave=False)
+    pbar = tqdm(loader, desc=f"[{desc}] diffusion loss", leave=False)
     for batch in pbar:
-        samples, observed_data, target_mask, observed_mask, tp, moe_w = model.evaluate(
-            batch, n_samples=n_samples
-        )
-        pred = deterministic_median(samples, dim=1)  # (B,K,L)
+        loss, _ = model(batch, is_train=0)
+        target_count = (
+            batch["irg_ts_mask"].float() - batch["gt_mask"].float()
+        ).clamp_min(0).sum().item()
 
-        err = (pred - observed_data) ** 2
-        mse = (err * target_mask).sum().item()
-        cnt = target_mask.sum().item()
+        weighted_loss_sum += loss.item() * target_count
+        total_target_count += target_count
 
-        total_mse += mse
-        total_cnt += cnt
+        running_loss = weighted_loss_sum / max(total_target_count, 1.0)
+        pbar.set_postfix(mse=f"{running_loss:.4f}")
 
-        rmse_running = math.sqrt(total_mse / max(total_cnt, 1.0))
-        pbar.set_postfix(rmse=f"{rmse_running:.4f}")
-
-    rmse = math.sqrt(total_mse / max(total_cnt, 1.0))
-    return float(rmse)
+    return float(weighted_loss_sum / max(total_target_count, 1.0))
 
 
-def save_rmse_plot(out_png: str, eval_epochs, val_rmse_epoch):
+def save_diffusion_mse_plot(out_png: str, eval_epochs, val_diffusion_mse_epoch):
     os.makedirs(os.path.dirname(out_png) or ".", exist_ok=True)
     plt.figure()
-    plt.plot(eval_epochs, val_rmse_epoch, marker="o")
+    plt.plot(eval_epochs, val_diffusion_mse_epoch, marker="o")
     plt.xlabel("Epoch")
-    plt.ylabel("Val RMSE")
-    plt.title("Validation RMSE vs Epoch")
+    plt.ylabel("Validation Diffusion MSE Loss")
+    plt.title("Validation Diffusion MSE Loss vs Epoch")
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(out_png)
@@ -79,7 +73,6 @@ def main():
 
     # evaluation
     parser.add_argument("--val_every", type=int, default=10, help="evaluate every N epochs (default: 10)")
-    parser.add_argument("--val_n_samples", type=int, default=1, help="num diffusion samples for val RMSE")
 
     # MoE ablation
     parser.add_argument("--num_experts", type=int, default=None, help="concat->experts MoE expert count")
@@ -137,7 +130,7 @@ def main():
         exp_dir = ensure_dir(os.path.join(args.metrics_root, args.folder_name))
     plots_dir = ensure_dir(os.path.join(exp_dir, "plots"))
     csv_path = os.path.join(exp_dir, "metrics.csv")
-    rmse_png = os.path.join(plots_dir, "val_rmse.png")
+    diffusion_mse_png = os.path.join(plots_dir, "val_diffusion_mse.png")
 
     # ckpt path
     if args.ckpt_path is None:
@@ -231,10 +224,10 @@ def main():
     # prepare CSV
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["epoch", "train_loss", "val_rmse", "num_experts"])
+        w.writerow(["epoch", "train_loss", "val_diffusion_mse", "num_experts"])
 
     best_val = float("inf")
-    val_rmse_epoch = []
+    val_diffusion_mse_epoch = []
     eval_epochs = []
 
     for epoch in range(1, config["train"]["max_epochs"] + 1):
@@ -261,27 +254,30 @@ def main():
 
         do_val = ((epoch % args.val_every) == 0) or (epoch == 1)
         if do_val:
-            val_rmse = eval_one_epoch_rmse(model, dl_val, device, n_samples=args.val_n_samples, desc="val")
-            val_rmse_epoch.append(float(val_rmse))
+            val_diffusion_mse = eval_one_epoch_diffusion_mse(model, dl_val, desc="val")
+            val_diffusion_mse_epoch.append(float(val_diffusion_mse))
             eval_epochs.append(int(epoch))
 
-            print(f"[epoch {epoch}] train_loss={avg_epoch_loss:.6f} val_RMSE={val_rmse:.6f} (val_n_samples={args.val_n_samples})")
+            print(
+                f"[epoch {epoch}] train_loss={avg_epoch_loss:.6f} "
+                f"val_diffusion_mse={val_diffusion_mse:.6f}"
+            )
 
             # append CSV row
             with open(csv_path, "a", newline="") as f:
                 w = csv.writer(f)
-                w.writerow([epoch, avg_epoch_loss, val_rmse, num_experts])
+                w.writerow([epoch, avg_epoch_loss, val_diffusion_mse, num_experts])
 
             # save plot every val
-            save_rmse_plot(rmse_png, eval_epochs, val_rmse_epoch)
+            save_diffusion_mse_plot(diffusion_mse_png, eval_epochs, val_diffusion_mse_epoch)
 
-            if val_rmse < best_val:
-                best_val = val_rmse
+            if val_diffusion_mse < best_val:
+                best_val = val_diffusion_mse
                 ckpt = {
                     "model": model.state_dict(),
                     "config": config,
                     "epoch": epoch,
-                    "val_rmse": val_rmse,
+                    "val_diffusion_mse": val_diffusion_mse,
                     "num_experts": num_experts,
                 }
                 torch.save(ckpt, args.ckpt_path)
@@ -289,7 +285,7 @@ def main():
         else:
             print(f"[epoch {epoch}] train_loss={avg_epoch_loss:.6f} (skip val, val_every={args.val_every})")
 
-    print("training done. best_val_RMSE=", best_val)
+    print("training done. best_val_diffusion_mse=", best_val)
     print("metrics dir:", exp_dir)
 
 
