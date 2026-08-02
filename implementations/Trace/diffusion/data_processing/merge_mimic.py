@@ -20,15 +20,15 @@ def main():
             "val": f"val_{args.task_name}_stays.pkl",
             "test": f"test_{args.task_name}_stays.pkl"
         },
-        "los": {
-            "train": "train_los-48-cxr-notes-ecg-_stays.pkl",
-            "val": "val_los-48-cxr-notes-ecg_stays.pkl",
-            "test": "test_los-48-cxr-notes-ecg-missingInd_stays.pkl"
+        "los-48-cxr-notes-ecg": {
+            "train": f"train_{args.task_name}_stays.pkl",
+            "val": f"val_{args.task_name}_stays.pkl",
+            "test": f"test_{args.task_name}_stays.pkl"
         },
-        "phe": {
-            "train": "train_pheno-all-cxr-notes-ecg-missingInd_stays.pkl",
-            "val": "val_pheno-all-cxr-notes-ecg-missingInd_stays.pkl",
-            "test": "test_pheno-all-cxr-notes-ecg-missingInd_stays.pkl"
+        "pheno-24-cxr-notes-ecg": {
+            "train": f"train_{args.task_name}_stays.pkl",
+            "val": f"val_{args.task_name}_stays.pkl",
+            "test": f"test_{args.task_name}_stays.pkl"
         }
     }
 
