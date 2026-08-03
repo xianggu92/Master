@@ -150,7 +150,7 @@ class MultiModalImputationDataset(Dataset):
             "cxr_missing": torch.tensor(cxr_missing, dtype=torch.long),
             "ecg_missing": torch.tensor(ecg_missing, dtype=torch.long),
 
-            "label": torch.tensor(int(s.get("label", 0)), dtype=torch.long),
+            "label": torch.tensor(s.get("label", 0), dtype=torch.long),
             "name": torch.tensor(int(s.get("name", 0)), dtype=torch.long),
             "hadm_id": torch.tensor(int(s.get("hadm_id", 0)), dtype=torch.long),
             "stay_id": torch.tensor(int(s.get("stay_id", 0)), dtype=torch.long),
