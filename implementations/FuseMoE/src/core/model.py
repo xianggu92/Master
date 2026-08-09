@@ -187,8 +187,12 @@ class MULTCrossModel(nn.Module):
                 proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, ts_rep, ts_emb_mask)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
             elif self.irregular_learn_emb_ts == "mTAND":
-                time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
-                time_key_ts = self.learn_time_embedding(ts_times)
+                if self.use_shared_time_embed:
+                    time_query = self.learn_time_embedding(self.time_query.unsqueeze(0))
+                    time_key_ts = self.learn_time_embedding(ts_times)
+                else:
+                    time_query = self.time_query
+                    time_key_ts = ts_times
 
                 x_ts_irg = torch.cat((ts_feats, ts_masks), 2)
                 ts_masks_expanded = torch.cat((ts_masks, ts_masks), 2)
