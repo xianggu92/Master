@@ -22,8 +22,6 @@ def make_save_dir(args):
 
     if args.irregular_learn_emb_ts is not None and "TS" in args.modeltype:
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
-    if args.use_pre_align_encoder_ts:
-        output_dir += "_TSEncoder_" + str(args.ts_dual_attention_layer)
     if args.impute:
         output_dir += '_impute'
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
@@ -35,15 +33,6 @@ def make_save_dir(args):
 
     if args.use_shared_time_embed:
         output_dir += '_shared'
-
-    if 'PatchInterpolation' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_patch_' + str(args.n_patches)
-
-        if args.use_global:
-            output_dir += '_global'
-
-    if 'TimeCHEAT' in [args.irregular_learn_emb_ts, args.irregular_learn_emb_text, args.irregular_learn_emb_cxr, args.irregular_learn_emb_ecg]:
-        output_dir += '_patch_' + str(args.n_patches) + '_enc_layer_' + str(args.n_enc_layers)
 
     output_dir += '_layer' + str(args.layers)
     output_dir+= "_" + args.cross_method

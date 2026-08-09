@@ -54,9 +54,6 @@ def parse_args():
     parser.add_argument("--embed_time", default=64, type=int, help="Dimension of time emdedding.")
     parser.add_argument("--use_shared_time_embed", action='store_true')
     parser.add_argument("--dropout", default=0.10, type=float, help="dropout.")
-    parser.add_argument("--n_enc_layers", type=int, default=1, help="Number of irregular encoder layers.")
-    parser.add_argument("--n_patches", default=2, type=int, help="Number of patches in patch interpolation and the TimeCHEAT encoder.")
-    parser.add_argument("--use_global", action='store_true', help="Use global interpolation in patch interpolation.")
 
     # MoE
     parser.add_argument("--cross_method", default='moe', type=str, help="all fusion methods: moe, hme, moe_cross, self_cross, MAGGate, MulT, Outer, concat")
@@ -77,13 +74,10 @@ def parse_args():
 
     # Time series
     parser.add_argument("--irregular_learn_emb_ts", type=str, default=None)
-    parser.add_argument("--num_heads_ts", type=int, default=8, help="Number of heads.")
     parser.add_argument("--kernel_size", type=int, default=1, help="Kernel size for UTDE imputation CNN.")
     parser.add_argument("--reg_ts", action='store_true')
     parser.add_argument('--TS_mixup', action='store_true', help='Mix up regular and iregular time series data')
     parser.add_argument("--mixup_level", default=None, type=str, help="Mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
-    parser.add_argument('--use_pre_align_encoder_ts', action='store_true', help='Use PRIME encoder to process time series data before alignment.')
-    parser.add_argument("--ts_dual_attention_layer", type=int, default=1)
     parser.add_argument("--impute", action='store_true', help='Use irregular time series imputed by diffusion models.')
     
     # Text
