@@ -3,6 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from core.module import TransformerCrossEncoder, gateMLP, multiTimeAttention
+from core.mFand import MultiFeatureAttention
 
 
 class MULTCrossModel(nn.Module):
@@ -24,6 +25,7 @@ class MULTCrossModel(nn.Module):
         self.use_shared_time_embed = args.use_shared_time_embed
         self.reg_ts = args.reg_ts
         self.TS_mixup = args.TS_mixup
+        self.use_mFAND = args.use_mFAND
         self.mixup_level = args.mixup_level
         self.task = args.task
         self.tt_max = args.tt_max
@@ -43,6 +45,22 @@ class MULTCrossModel(nn.Module):
 
             if self.irregular_learn_emb_ts == "mTAND":
                 self.time_attn_ts = multiTimeAttention(self.ts_dim * 2, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
+
+            if self.use_mFAND:
+                self.feature_attn_ts = MultiFeatureAttention(
+                    embed_value=args.embed_time,
+                    num_heads=self.num_heads,
+                    input_value_dim=self.ts_dim * 2,
+                    input_dim=self.ts_dim * 2,
+                    nhidden=self.embed_dim,
+                    dropout=self.dropout,
+                )
+                self.mfand_mtand_gate = gateMLP(
+                    input_dim=self.embed_dim * 2,
+                    hidden_size=self.embed_dim,
+                    output_dim=self.embed_dim,
+                    dropout=self.dropout,
+                )
 
             if self.reg_ts:
                 self.reg_ts_dim = args.ts_dim * 2
@@ -149,6 +167,10 @@ class MULTCrossModel(nn.Module):
         ecg_feats=None,
         ecg_times=None,
         ecg_masks=None,
+        query_ts_feats=None,
+        query_ts_masks=None,
+        imputed_ts_feats=None,
+        imputed_ts_masks=None,
     ):
         """dimension [batch_size, seq_len, n_features]"""
         if "TS" in self.modeltype:
@@ -165,6 +187,19 @@ class MULTCrossModel(nn.Module):
 
                 proj_x_ts_irg = self.time_attn_ts(time_query, time_key_ts, x_ts_irg, ts_masks_expanded)
                 proj_x_ts_irg = proj_x_ts_irg.transpose(0, 1)
+
+                if self.use_mFAND:
+                    mfand_query = torch.cat((query_ts_feats, query_ts_masks), dim=-1)
+                    mfand_key = mfand_value = torch.cat((imputed_ts_feats, imputed_ts_masks), dim=-1)
+
+                    ts_emb_mask = torch.sum(ts_masks, dim=-1)
+                    ts_emb_mask[ts_emb_mask > 1] = 1
+
+                    proj_x_ts_mfand = self.feature_attn_ts(mfand_query, mfand_key, mfand_value, emb_mask=ts_emb_mask, impute_data=query_ts_feats)
+                    proj_x_ts_mfand = proj_x_ts_mfand.transpose(0, 1)
+
+                    fusion_gate = self.mfand_mtand_gate(torch.cat((proj_x_ts_irg, proj_x_ts_mfand), dim=-1))
+                    proj_x_ts_irg = fusion_gate * proj_x_ts_mfand + (1 - fusion_gate) * proj_x_ts_irg
 
             if self.reg_ts and reg_ts_feats is not None:
                 x_ts_reg = reg_ts_feats.transpose(1, 2)

@@ -41,6 +41,106 @@ def impute_missing_values(features, timestamps, feature_mask, duration, max_time
     return imputed_data
 
 
+def impute_ts(query_ts_tt, ts_data, ts_mask, ts_tt, sort="+"):
+    # print("tsdata:", ts_data)
+    # print("ts_mask:", ts_mask)
+    ts_data = ts_data * ts_mask
+    L, K = ts_data.shape
+    L_t = query_ts_tt.shape[0]
+    query_ts_data = torch.zeros((L_t, K), dtype=ts_data.dtype).to(ts_data.device)
+    query_ts_mask = torch.ones((L_t, K), dtype=ts_data.dtype).to(ts_data.device) * 0.5
+    query_ts_dt = torch.zeros((L_t, K), dtype=ts_data.dtype).to(ts_data.device)
+    mean_data = torch.sum(ts_data, dim=0) / torch.sum(ts_mask, dim=0)
+    mean_data[mean_data.isnan()] = 0
+
+    k_sum = torch.sum(ts_mask, dim=0)
+    # print("k_sum:", k_sum)
+    # query_ts_mask[:, k_sum==0] = 0
+    # print("query_mask:", query_ts_mask)
+
+    if sort == "+":
+        ts_data_index = 0
+        query_tt_index = 0
+        # 先把范围外的用均值补上，dt为0
+        while query_ts_tt[query_tt_index] < ts_tt[ts_data_index]:
+            query_ts_data[query_tt_index] = mean_data
+            query_ts_dt[query_tt_index] = torch.zeros((K), dtype=ts_data.dtype).to(ts_data.device)
+            query_tt_index += 1
+            if query_tt_index >= L_t:
+                break
+
+        # 中间的 依次替换 保留上一个有效值及上一个有效值的时刻
+        now_ts_data = mean_data
+        now_ts_mask = torch.ones((K), dtype=ts_data.dtype).to(ts_data.device) * 0.5
+        now_ts_mask[k_sum==0] = 0
+        now_ts_index_data = ts_data[ts_data_index]
+        now_ts_data[ts_mask[ts_data_index]==1] = now_ts_index_data[ts_mask[ts_data_index]==1]
+        now_ts_mask[ts_mask[ts_data_index]==1] = 1
+        now_ts_data_tt = torch.ones((K), dtype=ts_tt.dtype).to(ts_tt.device) * ts_tt[ts_data_index]
+        while ts_data_index < L-1 and query_tt_index < L_t:
+            if query_ts_tt[query_tt_index] >= ts_tt[ts_data_index] and query_ts_tt[query_tt_index] < ts_tt[ts_data_index + 1]:
+                query_ts_data[query_tt_index] = now_ts_data
+                query_ts_mask[query_tt_index] = now_ts_mask
+                query_ts_dt[query_tt_index] = query_ts_tt[query_tt_index] - now_ts_data_tt
+                query_tt_index += 1
+                continue
+            ts_data_index += 1
+            now_ts_data[ts_mask[ts_data_index]==1] = ts_data[ts_data_index, ts_mask[ts_data_index]==1]
+            now_ts_mask[ts_mask[ts_data_index]==1] = 1
+            now_ts_data_tt[ts_mask[ts_data_index]==1] = ts_tt[ts_data_index]
+        # 若超出ts tt，则继续。
+        while query_tt_index < L_t and query_ts_tt[query_tt_index] >= ts_tt[ts_data_index]:
+            query_ts_data[query_tt_index] = now_ts_data
+            query_ts_mask[query_tt_index] = now_ts_mask
+            query_ts_dt[query_tt_index] = query_ts_tt[query_tt_index] - now_ts_data_tt
+            query_tt_index += 1
+
+    if sort == "-":
+        ts_data_index = L-1
+        query_tt_index = L_t-1
+        while query_ts_tt[query_tt_index] > ts_tt[ts_data_index]:
+            query_ts_data[query_tt_index] = mean_data
+            query_ts_dt[query_tt_index] = torch.zeros((K), dtype=ts_data.dtype).to(ts_data.device)
+            query_tt_index -= 1
+            if query_tt_index < 0:
+                break
+
+        now_ts_data = mean_data
+        now_ts_mask = torch.ones((K), dtype=ts_data.dtype).to(ts_data.device) * 0.5
+        now_ts_mask[k_sum == 0] = 0
+        now_ts_index_data = ts_data[ts_data_index]
+        now_ts_data[ts_mask[ts_data_index] == 1] = now_ts_index_data[ts_mask[ts_data_index] == 1]
+        now_ts_mask[ts_mask[ts_data_index] == 1] = 1
+        now_ts_data_tt = torch.ones((K), dtype=ts_tt.dtype).to(ts_tt.device) * ts_tt[ts_data_index]
+        while ts_data_index > 0 and query_tt_index > -1:
+            if query_ts_tt[query_tt_index] <= ts_tt[ts_data_index] and query_ts_tt[query_tt_index] > ts_tt[
+                ts_data_index - 1]:
+                query_ts_data[query_tt_index] = now_ts_data
+                query_ts_mask[query_tt_index] = now_ts_mask
+                query_ts_dt[query_tt_index] = now_ts_data_tt - query_ts_tt[query_tt_index]
+                query_tt_index -= 1
+                continue
+            ts_data_index -= 1
+            now_ts_data[ts_mask[ts_data_index] == 1] = ts_data[ts_data_index, ts_mask[ts_data_index] == 1]
+            now_ts_mask[ts_mask[ts_data_index] == 1] = 1
+            now_ts_data_tt[ts_mask[ts_data_index] == 1] = ts_tt[ts_data_index]
+
+        while query_tt_index > -1 and query_ts_tt[query_tt_index] <= ts_tt[ts_data_index]:
+            query_ts_data[query_tt_index] = now_ts_data
+            query_ts_mask[query_tt_index] = now_ts_mask
+            query_ts_dt[query_tt_index] = now_ts_data_tt - query_ts_tt[query_tt_index]
+            query_tt_index -= 1
+
+    return query_ts_data, query_ts_dt, query_ts_mask
+
+
+def impute_ts_data(query_ts_tt, ts_data, ts_mask, ts_tt):
+    query_ts_data, _, query_ts_mask = impute_ts(query_ts_tt, ts_data, ts_mask, ts_tt, sort="+")
+    imputed_ts_data, _, imputed_ts_mask = impute_ts(ts_tt, ts_data, ts_mask, ts_tt, sort="+")
+
+    return query_ts_data, query_ts_mask, imputed_ts_data, imputed_ts_mask
+
+
 class TSNoteIrgDataset(Dataset):
     """A PyTorch dataset class for handling time series note data in the MIMIC-IV dataset."""
 
@@ -55,6 +155,7 @@ class TSNoteIrgDataset(Dataset):
         self.max_time = args.tt_max
         self.reg_ts = args.reg_ts
         self.impute = args.impute
+        self.use_mFAND = getattr(args, "use_mFAND", False)
         if args.debug:
             self.data = self.data[:100]
 
@@ -84,6 +185,16 @@ class TSNoteIrgDataset(Dataset):
             ts_features = torch.tensor(ts_features, dtype=torch.float)
             ts_mask = torch.tensor(ts_mask, dtype=torch.float)
             ts_timestamps = torch.tensor(ts_timestamps / self.max_time, dtype=torch.float)
+
+            if self.use_mFAND:
+                query_tt = torch.linspace(0, 1.0, self.max_time)
+                query_data, query_mask, imputed_data, imputed_mask = impute_ts_data(
+                    query_tt, ts_features, ts_mask, ts_timestamps
+                )
+                sample_dict["query_ts_feat"] = query_data
+                sample_dict["query_ts_mask"] = query_mask
+                sample_dict["imputed_ts_feat"] = imputed_data
+                sample_dict["imputed_ts_mask"] = imputed_mask
 
             sample_dict["ts_feat"] = ts_features
             sample_dict["ts_time"] = ts_timestamps
@@ -199,6 +310,12 @@ def text_ts_irg_collate_fn(batch):
         batch_output["ts_times"] = ts_timestamps
         batch_output["reg_ts_feats"] = reg_ts_input
         batch_output["labels"] = labels
+
+        if "query_ts_feat" in batch[0]:
+            batch_output["query_ts_feats"] = torch.stack([example["query_ts_feat"] for example in batch])
+            batch_output["query_ts_masks"] = torch.stack([example["query_ts_mask"] for example in batch])
+            batch_output["imputed_ts_feats"] = pad_sequence([example["imputed_ts_feat"] for example in batch], batch_first=True, padding_value=0)
+            batch_output["imputed_ts_masks"] = pad_sequence([example["imputed_ts_mask"] for example in batch], batch_first=True, padding_value=0)
     except Exception:
         print("Sample with no vital signs detected")
         return
@@ -234,3 +351,4 @@ def text_ts_irg_collate_fn(batch):
         batch_output["ecg_masks"] = ecg_time_masks
 
     return batch_output
+

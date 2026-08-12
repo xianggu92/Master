@@ -22,6 +22,8 @@ def make_save_dir(args):
 
     if args.irregular_learn_emb_ts is not None and "TS" in args.modeltype:
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
+    if args.use_mFAND and "TS" in args.modeltype:
+        output_dir += "_mFAND"
     if args.impute:
         output_dir += '_impute'
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
