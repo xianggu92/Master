@@ -24,6 +24,9 @@ def make_save_dir(args):
         output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
     if args.use_mFAND and "TS" in args.modeltype:
         output_dir += "_mFAND"
+        
+        if args.use_mFAND and args.mfand_fusion_weight is not None:
+            output_dir += "_weight_" + str(args.mfand_fusion_weight)
     if args.impute:
         output_dir += '_impute'
     if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:

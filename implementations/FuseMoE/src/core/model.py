@@ -26,6 +26,7 @@ class MULTCrossModel(nn.Module):
         self.reg_ts = args.reg_ts
         self.TS_mixup = args.TS_mixup
         self.use_mFAND = args.use_mFAND
+        self.mfand_fusion_weight = args.mfand_fusion_weight
         self.mixup_level = args.mixup_level
         self.task = args.task
         self.tt_max = args.tt_max
@@ -47,15 +48,14 @@ class MULTCrossModel(nn.Module):
                 self.time_attn_ts = multiTimeAttention(self.ts_dim * 2, self.embed_dim, args.embed_time, 8, args.use_shared_time_embed)
 
             if self.use_mFAND:
-                self.feature_attn_ts = MultiFeatureAttention(
-                    embed_value=args.embed_time,
-                    num_heads=self.num_heads,
-                    input_value_dim=self.ts_dim * 2,
-                    input_dim=self.ts_dim * 2,
-                    nhidden=self.embed_dim,
-                    dropout=self.dropout,
-                )
-                if self.mixup_level == "batch":
+                if self.mfand_fusion_weight is not None and not 0 <= self.mfand_fusion_weight <= 1:
+                    raise ValueError("mfand_fusion_weight must be between 0 and 1")
+
+                self.feature_attn_ts = MultiFeatureAttention(embed_value=args.embed_time, num_heads=self.num_heads, input_value_dim=self.ts_dim * 2, input_dim=self.ts_dim * 2, nhidden=self.embed_dim, dropout=self.dropout)
+                
+                if self.mfand_fusion_weight is not None:
+                    self.mfand_mtand_gate = None
+                elif self.mixup_level == "batch":
                     self.mfand_mtand_gate = gateMLP(input_dim=self.embed_dim * 2, hidden_size=self.embed_dim, output_dim=1, dropout=self.dropout)
                 elif self.mixup_level == "batch_seq":
                     self.mfand_mtand_gate = gateMLP(input_dim=self.embed_dim * 2, hidden_size=self.embed_dim, output_dim=1, dropout=self.dropout)
@@ -200,7 +200,9 @@ class MULTCrossModel(nn.Module):
                     proj_x_ts_mfand = self.feature_attn_ts(mfand_query, mfand_key, mfand_value, emb_mask=ts_emb_mask, impute_data=query_ts_feats)
                     proj_x_ts_mfand = proj_x_ts_mfand.transpose(0, 1)
 
-                    if self.mixup_level == "batch":
+                    if self.mfand_fusion_weight is not None:
+                        fusion_gate = self.mfand_fusion_weight
+                    elif self.mixup_level == "batch":
                         mtand_summary = torch.max(proj_x_ts_irg, dim=0).values
                         mfand_summary = torch.max(proj_x_ts_mfand, dim=0).values
                         fusion_gate = self.mfand_mtand_gate(torch.cat((mtand_summary, mfand_summary), dim=-1)).unsqueeze(0)

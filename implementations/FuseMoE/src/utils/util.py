@@ -78,6 +78,7 @@ def parse_args():
     parser.add_argument("--reg_ts", action='store_true')
     parser.add_argument('--TS_mixup', action='store_true', help='Mix up regular and iregular time series data')
     parser.add_argument('--use_mFAND', action='store_true', help='Fuse mFAND and mTAND time-series representations.')
+    parser.add_argument('--mfand_fusion_weight', default=None, type=float, help='Fixed mFAND fusion weight in [0, 1]. If omitted, learn the fusion weight with a gate.')
     parser.add_argument("--mixup_level", default=None, type=str, help="Mixedup level for two time series data, choose: 'batch', batch_seq' or 'batch_seq_feature'. ")
     parser.add_argument("--impute", action='store_true', help='Use irregular time series imputed by diffusion models.')
     
