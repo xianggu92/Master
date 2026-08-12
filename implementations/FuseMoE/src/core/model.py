@@ -55,12 +55,14 @@ class MULTCrossModel(nn.Module):
                     nhidden=self.embed_dim,
                     dropout=self.dropout,
                 )
-                self.mfand_mtand_gate = gateMLP(
-                    input_dim=self.embed_dim * 2,
-                    hidden_size=self.embed_dim,
-                    output_dim=self.embed_dim,
-                    dropout=self.dropout,
-                )
+                if self.mixup_level == "batch":
+                    self.mfand_mtand_gate = gateMLP(input_dim=self.embed_dim * 2, hidden_size=self.embed_dim, output_dim=1, dropout=self.dropout)
+                elif self.mixup_level == "batch_seq":
+                    self.mfand_mtand_gate = gateMLP(input_dim=self.embed_dim * 2, hidden_size=self.embed_dim, output_dim=1, dropout=self.dropout)
+                elif self.mixup_level == "batch_seq_feature":
+                    self.mfand_mtand_gate = gateMLP(input_dim=self.embed_dim * 2, hidden_size=self.embed_dim, output_dim=self.embed_dim, dropout=self.dropout)
+                else:
+                    raise ValueError("Unknown mixedup type")
 
             if self.reg_ts:
                 self.reg_ts_dim = args.ts_dim * 2
@@ -198,7 +200,15 @@ class MULTCrossModel(nn.Module):
                     proj_x_ts_mfand = self.feature_attn_ts(mfand_query, mfand_key, mfand_value, emb_mask=ts_emb_mask, impute_data=query_ts_feats)
                     proj_x_ts_mfand = proj_x_ts_mfand.transpose(0, 1)
 
-                    fusion_gate = self.mfand_mtand_gate(torch.cat((proj_x_ts_irg, proj_x_ts_mfand), dim=-1))
+                    if self.mixup_level == "batch":
+                        mtand_summary = torch.max(proj_x_ts_irg, dim=0).values
+                        mfand_summary = torch.max(proj_x_ts_mfand, dim=0).values
+                        fusion_gate = self.mfand_mtand_gate(torch.cat((mtand_summary, mfand_summary), dim=-1)).unsqueeze(0)
+                    elif self.mixup_level in ("batch_seq", "batch_seq_feature"):
+                        fusion_gate = self.mfand_mtand_gate(torch.cat((proj_x_ts_irg, proj_x_ts_mfand), dim=-1))
+                    else:
+                        raise ValueError(f"Unknown mixup level: {self.mixup_level}")
+
                     proj_x_ts_irg = fusion_gate * proj_x_ts_mfand + (1 - fusion_gate) * proj_x_ts_irg
 
             if self.reg_ts and reg_ts_feats is not None:
