@@ -51,7 +51,7 @@ class MULTCrossModel(nn.Module):
                 if self.mfand_fusion_weight is not None and not 0 <= self.mfand_fusion_weight <= 1:
                     raise ValueError("mfand_fusion_weight must be between 0 and 1")
 
-                self.feature_attn_ts = MultiFeatureAttention(embed_value=args.embed_time, num_heads=self.num_heads, input_value_dim=self.ts_dim * 2, input_dim=self.ts_dim * 2, nhidden=self.embed_dim, dropout=self.dropout)
+                self.feature_attn_ts = MultiFeatureAttention(embed_value=args.embed_time, num_heads=self.num_heads, input_value_dim=self.ts_dim * 2, input_dim=args.embed_time, nhidden=self.embed_dim, dropout=self.dropout)
                 
                 if self.mfand_fusion_weight is not None:
                     self.mfand_mtand_gate = None
@@ -192,7 +192,7 @@ class MULTCrossModel(nn.Module):
 
                 if self.use_mFAND:
                     mfand_query = torch.cat((query_ts_feats, query_ts_masks), dim=-1)
-                    mfand_key = mfand_value = torch.cat((imputed_ts_feats, imputed_ts_masks), dim=-1)
+                    mfand_key = mfand_value = torch.cat((ts_feats, ts_masks), dim=-1)
 
                     ts_emb_mask = torch.sum(ts_masks, dim=-1)
                     ts_emb_mask[ts_emb_mask > 1] = 1

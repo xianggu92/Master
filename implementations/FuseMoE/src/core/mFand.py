@@ -68,9 +68,10 @@ class MultiFeatureAttention(nn.Module):
         # 1. tt->value emb
         query_value_emb = self.learn_value_embedding(query_value)
         key_value_emb = self.learn_value_embedding(key_value)
+        value_emb = self.learn_value_embedding(value)
 
         # 2. value emb->linear->split to n head
-        batch, _, seq_len, dim = value.shape
+        batch, _, seq_len, dim = value_emb.shape
         query, key = [l(x).view(x.size(0), -1, self.h, self.embed_value_k).transpose(1, 2)
                       for l, x in zip(self.linears, (query_value_emb, key_value_emb))]  # B H L E/D
 
@@ -80,7 +81,7 @@ class MultiFeatureAttention(nn.Module):
             emb_mask = emb_mask.unsqueeze(1)  # B 1 L
 
         # 4. attention
-        x, _ = self.attention(query, key, value, emb_mask)
+        x, _ = self.attention(query, key, value_emb, emb_mask)
         x = x.transpose(1, 2).contiguous() \
             .view(batch, -1, self.h * dim)
 
