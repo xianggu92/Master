@@ -27,7 +27,7 @@ def eval_test(args, model, test_data_loader, device):
     print(file_path)
     checkpoint = torch.load(file_path, weights_only=False)
     model.load_state_dict(checkpoint['network'], strict=False)
-    test_val = evaluate_irg(args=args, device=device, data_loader=test_data_loader, model=model)
+    test_val, _ = evaluate_irg(args=args, device=device, data_loader=test_data_loader, model=model)
     print(test_val)
     for eval_type, val in test_val.items():
         result_dict[seed][eval_type]={}
@@ -97,11 +97,12 @@ def trainer_irg(model, args, accelerator, train_dataloader, dev_dataloader, test
                 'Total Loss': epoch_total_loss / total_samples,
             })
 
-        eval_vals = evaluate_irg(args, device, dev_dataloader, model)
+        eval_vals, eval_logits = evaluate_irg(args, device, dev_dataloader, model)
 
         if eval_vals[args.monitor] > best_evals.get(args.monitor, float('-inf')):
             best_evals = eval_vals.copy()
             early_stopping_counter = 0
+            check_point(eval_vals, model, eval_logits, args, args.monitor)
         else:
             early_stopping_counter += 1
 
@@ -149,8 +150,6 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
 
-        check_point(eval_vals, model, eval_logits, args, args.monitor)
-
     elif 'ihm' in args.task or 'los' in args.task:
         eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits))
         eval_vals['auprc'] = average_precision_score(np.array(eval_example), np.array(eval_logits))
@@ -158,6 +157,4 @@ def evaluate_irg(args, device, data_loader, model):
         eval_vals['recall'] = recall_score(np.array(eval_example), all_pred)
         eval_vals['precision'] = precision_score(np.array(eval_example), all_pred)
 
-        check_point(eval_vals, model, eval_logits, args, args.monitor)
-
-    return eval_vals
+    return eval_vals, eval_logits

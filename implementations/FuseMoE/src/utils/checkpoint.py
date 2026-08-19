@@ -70,23 +70,9 @@ def check_point(all_val, model, all_logits, args, eval_score=None):
     os.makedirs(output_dir, exist_ok=True)
 
     filename = output_dir+str(seed)+'.pth.tar'
-
-    if not os.path.exists(filename):
-        is_best = True
-        save_checkpoint({
-        'network':model.state_dict(),
-        'logits':all_logits,
+    save_checkpoint({
+        'network': model.state_dict(),
+        'logits': all_logits,
         'best_val': all_val,
-        'args': args}, is_best, filename)
-    else:
-        checkpoint = torch.load(filename, weights_only=False)
-        # import pdb; pdb.set_trace()
-        val = checkpoint['best_val'][eval_score]
-        best_val= all_val[eval_score]
-        is_best = bool(best_val>val)
-        if is_best:
-            save_checkpoint({
-            'network':model.state_dict(),
-            'logits':all_logits,
-            'best_val': all_val,
-            'args': args}, is_best, filename)
+        'args': args,
+    }, True, filename)
