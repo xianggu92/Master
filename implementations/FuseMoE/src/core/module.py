@@ -550,7 +550,7 @@ class TransformerCrossEncoderLayer(nn.Module):
                 if torch.isnan(embeddings).any():
                     raise ValueError('Error: This batch encountered NaN')
                 
-                moe_out, balance_loss = self.moe(x_mod_in, modalities=modality)
+                moe_out, balance_loss = self.moe(x_mod_in, train=self.training, modalities=modality)
                 x_mod_out = [moe_out[:, embd_len_list[i]:embd_len_list[i + 1]] for i in range(len(embd_len_list) - 1)]
                 x_allmod_output = [torch.reshape(x, (seq_len, bs, -1)) for x in x_mod_out]
                 moe_output = [F.dropout(x, p=self.res_dropout, training=self.training) for x in x_allmod_output]

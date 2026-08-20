@@ -12,12 +12,6 @@ def save_checkpoint(state, is_best, filename):
         print ("=> Validation Accuracy did not improve")
 
 def make_save_dir(args):
-    path_fields = {
-        "modeltype": args.modeltype,
-        "task": args.task,
-        "run_name": args.run_name,
-    }
-
     output_dir = os.path.join(
         args.output_dir,
         args.modeltype,
