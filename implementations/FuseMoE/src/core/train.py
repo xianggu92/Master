@@ -1,6 +1,6 @@
 from utils.checkpoint import check_point
 from tqdm import tqdm
-from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score, average_precision_score
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, average_precision_score
 import warnings 
 import wandb
 import torch
@@ -144,17 +144,17 @@ def evaluate_irg(args, device, data_loader, model):
     all_pred= np.where(all_logits > 0.5, 1, 0)
 
     if 'pheno' in args.task:
-        eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits), average="macro")
-        eval_vals['auprc'] = average_precision_score(np.array(eval_example), np.array(eval_logits), average='macro')
+        eval_vals['auroc'] = roc_auc_score(all_label, all_logits, average="macro")
+        eval_vals['auprc'] = average_precision_score(all_label, all_logits, average='macro')
         eval_vals['f1'] = f1_score(all_label, all_pred, average='macro')
-        eval_vals['recall'] = recall_score(np.array(eval_example), all_pred, average='macro')
-        eval_vals['precision'] = precision_score(np.array(eval_example), all_pred, average='macro')
+        eval_vals['recall'] = recall_score(all_label, all_pred, average='macro')
+        eval_vals['specificity'] = recall_score(1 - all_label, 1 - all_pred, average='macro')
 
     elif 'ihm' in args.task or 'los' in args.task:
-        eval_vals['auroc'] = roc_auc_score(np.array(eval_example), np.array(eval_logits))
-        eval_vals['auprc'] = average_precision_score(np.array(eval_example), np.array(eval_logits))
-        eval_vals['f1'] = f1_score(np.array(eval_example), all_pred)
-        eval_vals['recall'] = recall_score(np.array(eval_example), all_pred)
-        eval_vals['precision'] = precision_score(np.array(eval_example), all_pred)
+        eval_vals['auroc'] = roc_auc_score(all_label, all_logits)
+        eval_vals['auprc'] = average_precision_score(all_label, all_logits)
+        eval_vals['f1'] = f1_score(all_label, all_pred)
+        eval_vals['recall'] = recall_score(all_label, all_pred)
+        eval_vals['specificity'] = recall_score(1 - all_label, 1 - all_pred)
 
     return eval_vals, eval_logits
