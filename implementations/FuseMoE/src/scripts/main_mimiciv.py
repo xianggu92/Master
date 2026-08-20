@@ -16,7 +16,6 @@ import wandb
 def main():
     args = parse_args()
     args.num_modalities = len(args.modeltype.split('_'))
-    args.output_dir = f"../run/{args.modeltype}"
     args.tt_max = int(args.task.split('-')[1])
     args.num_labels = 25 if 'pheno' in args.task else 2
 
@@ -49,7 +48,7 @@ def main():
 
     if args.mode == 'train':
         if args.wandb:
-            wandb.init(project=f"FuseMoE-{args.task.split('-')[0]}", name=args.ck_file_path.split('/')[-2] + f'_seed{args.seed}')
+            wandb.init(project="FuseMoE-MIMICIV", group=f"{args.modeltype}/{args.task}/{args.run_name}", name=f"{args.run_name}-seed{args.seed}")
 
         model, optimizer, train_dataloader,val_dataloader,test_data_loader = \
         accelerator.prepare(model, optimizer, train_dataloader, val_dataloader, test_data_loader)

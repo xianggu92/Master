@@ -1,11 +1,6 @@
-import re
+import json
 import os
 import torch
-import operator
-from statistics import mean,stdev
-import fnmatch
-
-import shutil
 
 
 def save_checkpoint(state, is_best, filename):
@@ -17,47 +12,29 @@ def save_checkpoint(state, is_best, filename):
         print ("=> Validation Accuracy did not improve")
 
 def make_save_dir(args):
+    path_fields = {
+        "modeltype": args.modeltype,
+        "task": args.task,
+        "run_name": args.run_name,
+    }
 
-    output_dir=args.output_dir + "/" + args.task + "_" + args.modeltype
+    output_dir = os.path.join(
+        args.output_dir,
+        args.modeltype,
+        args.task,
+        args.run_name,
+    )
 
-    if args.irregular_learn_emb_ts is not None and "TS" in args.modeltype:
-        output_dir += "_TS_" + args.irregular_learn_emb_ts + "_" + str(args.embed_time)
-    if args.use_mFAND and "TS" in args.modeltype:
-        output_dir += "_mFAND"
-        
-        if args.use_mFAND and args.mfand_fusion_weight is not None:
-            output_dir += "_weight_" + str(args.mfand_fusion_weight)
-    if args.impute:
-        output_dir += '_impute'
-    if args.irregular_learn_emb_text is not None and 'Text' in args.modeltype:
-        output_dir += "_Text_" + args.irregular_learn_emb_text + "_" + str(args.embed_time)
-    if args.irregular_learn_emb_cxr is not None and "CXR" in args.modeltype:
-        output_dir += "_CXR_" + args.irregular_learn_emb_cxr + "_" + str(args.embed_time)
-    if args.irregular_learn_emb_ecg is not None and 'ECG' in args.modeltype:
-        output_dir += "_ECG_" + args.irregular_learn_emb_ecg + "_" + str(args.embed_time)
+    # Keep a trailing separator because checkpoint callers append metric names
+    # and filenames to ck_file_path.
+    args.ck_file_path = output_dir + os.sep
+    os.makedirs(output_dir, exist_ok=True)
 
-    if args.use_shared_time_embed:
-        output_dir += '_shared'
-
-    output_dir += '_layer' + str(args.layers)
-    output_dir+= "_" + args.cross_method
-
-    if args.cross_method == 'moe':
-        output_dir += f"_{args.gating_function}"
-        output_dir += f"_{args.router_type}"
-        output_dir += f"_expert_{args.num_of_experts}"
-        output_dir += f"_top_{args.top_k}"
-        if args.router_type == 'disjoint':
-            output_dir += f"_disjoint_{args.disjoint_top_k}"
-
-    if args.TS_mixup:
-        output_dir += "_" + args.mixup_level + "_kernel_" + str(args.kernel_size)
-
-    output_dir += "_lr_" + str(args.ts_learning_rate) + "_epoch_" + str(args.num_train_epochs) + "_head_" + str(args.num_heads) + "_embed_" + str(args.embed_dim) +\
-        "_bs_" + str(args.train_batch_size) + "_mlp_hidden_" + str(args.hidden_size) + '/'
-
-    args.ck_file_path = output_dir
-    os.makedirs(output_dir,  exist_ok=True)
+    config_path = os.path.join(output_dir, "config.json")
+    config = vars(args).copy()
+    config.pop("seed", None)
+    with open(config_path, "w", encoding="utf-8") as config_file:
+        json.dump(config, config_file, indent=2, ensure_ascii=False, default=str)
 
 
 def check_point(all_val, model, all_logits, args, eval_score=None):
@@ -65,8 +42,6 @@ def check_point(all_val, model, all_logits, args, eval_score=None):
 
     seed = args.seed
 
-    if eval_score:
-        output_dir += eval_score +'/'
     os.makedirs(output_dir, exist_ok=True)
 
     filename = output_dir+str(seed)+'.pth.tar'

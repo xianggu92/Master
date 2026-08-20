@@ -23,7 +23,7 @@ def eval_test(args, model, test_data_loader, device):
     seed = args.seed
     result_dict[seed] = {}
     file = str(seed) + '.pth.tar'
-    file_path = os.path.join(rootdir, args.monitor, file)
+    file_path = os.path.join(rootdir, file)
     print(file_path)
     checkpoint = torch.load(file_path, weights_only=False)
     model.load_state_dict(checkpoint['network'])
@@ -31,7 +31,7 @@ def eval_test(args, model, test_data_loader, device):
     print(test_val)
     for eval_type, val in test_val.items():
         result_dict[seed][eval_type]={}
-        # result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
+        result_dict[seed][eval_type]['val']=checkpoint['best_val'][eval_type]
         result_dict[seed][eval_type]['test']=test_val[eval_type]
 
     with open(rootdir+"/result.pkl","wb") as f:
