@@ -274,13 +274,16 @@ class MoE(nn.Module):
         elif self.gating == 'gaussian':
             clean_logits = -torch.pow(torch.cdist(x, torch.t(w_gate)), 2)
 
-        if self.noisy_gating:
+        noisy_gating = self.noisy_gating and train
+        if noisy_gating:
             raw_noise_stddev = x @ w_noise
-            noise_stddev = ((self.softplus(raw_noise_stddev) + noise_epsilon) * train)
+            noise_stddev = self.softplus(raw_noise_stddev) + noise_epsilon
             noisy_logits = clean_logits + (torch.randn_like(clean_logits) * noise_stddev)
             logits = noisy_logits
         else:
             logits = clean_logits
+            noisy_logits = None
+            noise_stddev = None
         return logits, clean_logits, noisy_logits, noise_stddev
 
     def _top_k_gating(self, logits, clean_logits, noisy_logits, noise_stddev, k):
@@ -295,7 +298,7 @@ class MoE(nn.Module):
         zeros = torch.zeros_like(logits, requires_grad=True)
         gates = zeros.scatter(1, top_k_indices, top_k_gates)
 
-        if self.noisy_gating and k < self.num_experts:
+        if noise_stddev is not None and k < self.num_experts:
             load = (self._prob_in_top_k(clean_logits, noisy_logits, noise_stddev, top_logits)).sum(0)
         else:
             load = self._gates_to_load(gates)
